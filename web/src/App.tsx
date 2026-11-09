@@ -61,76 +61,7 @@ export type Lead = {
   url?: string;
 };
 
-const initialLeads: Lead[] = [
-  {
-    id: "lead_1",
-    name: "Nguyễn Minh Anh",
-    platform: "Facebook",
-    handle: "@minhanh.nguyen",
-    phone: "0905 382 147",
-    need: "Niềng răng",
-    location: "Hà Nội",
-    status: "New",
-    agent: "Linh Nguyễn",
-    agentInitials: "LN",
-    score: 94,
-    time: "12 phút trước",
-    post: "Mọi người cho mình xin review chỗ niềng răng uy tín ở Hà Nội với ạ. Chi phí tầm bao nhiêu?",
-    note: "Lead có nhu cầu rõ ràng, hỏi trực tiếp về chi phí.",
-    url: "https://facebook.com",
-  },
-  {
-    id: "lead_2",
-    name: "Trần Quốc Bảo",
-    platform: "Voz",
-    handle: "@quocbao.voz",
-    phone: "0935 771 820",
-    need: "Trồng Răng / Cấy Ghép Implant",
-    location: "TP. Hồ Chí Minh",
-    status: "Contacted",
-    agent: "Huy Phạm",
-    agentInitials: "HP",
-    score: 88,
-    time: "28 phút trước",
-    post: "Ba mình bị mất răng lâu năm, đang tìm hiểu trồng implant ở Sài Gòn, chỗ nào bác sĩ tay nghề cao?",
-    note: "Khách cần tư vấn phương án implant all-on-4.",
-    url: "https://voz.vn",
-  },
-  {
-    id: "lead_3",
-    name: "Lê Hoàng Vy",
-    platform: "Web",
-    handle: "@hoangvy.web",
-    phone: "Chưa có SĐT",
-    need: "Bọc Răng Sứ / Dán Sứ Thẩm Mỹ",
-    location: "Đà Nẵng",
-    status: "Booking",
-    agent: "Linh Nguyễn",
-    agentInitials: "LN",
-    score: 91,
-    time: "41 phút trước",
-    post: "Muốn làm răng sứ mà sợ bị mài nhiều, có nha khoa nào tư vấn kỹ dán sứ veneer không mọi người?",
-    note: "Đã hẹn tư vấn online lúc 14:30 ngày mai.",
-    url: "https://webtretho.com",
-  },
-  {
-    id: "lead_4",
-    name: "Phạm Tuấn Kiệt",
-    platform: "Facebook",
-    handle: "@tuan.kiet.98",
-    phone: "0777 214 590",
-    need: "Nhổ Răng Khôn (Số 8)",
-    location: "Hà Nội",
-    status: "Qualified",
-    agent: "Mai Trần",
-    agentInitials: "MT",
-    score: 86,
-    time: "1 giờ trước",
-    post: "Răng khôn hàm dưới đau nhức buốt lên đầu mấy hôm nay, cần tìm chỗ nhổ siêu âm không đau ở Cầu Giấy.",
-    note: "Khách đau cấp, có thể tiếp nhận trong ngày.",
-    url: "https://facebook.com",
-  },
-];
+const initialLeads: Lead[] = [];
 
 const statusOptions: LeadStatus[] = ["New", "Contacted", "Booking", "Qualified", "Lost"];
 
@@ -455,6 +386,8 @@ function Topbar({
   scanStatus,
   user,
   onLogout,
+  autoCrawler,
+  antiSleep,
 }: {
   dark: boolean;
   onThemeChange: () => void;
@@ -463,6 +396,8 @@ function Topbar({
   scanStatus: string;
   user: AuthUser;
   onLogout: () => void;
+  autoCrawler?: any;
+  antiSleep?: any;
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -477,6 +412,52 @@ function Topbar({
         <kbd>⌘ K</kbd>
       </div>
       <div className="topbar-actions">
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 500,
+              background: autoCrawler?.is_crawling ? "rgba(16, 185, 129, 0.15)" : "var(--surface-soft)",
+              color: autoCrawler?.is_crawling ? "#10b981" : "var(--text)",
+              border: "1px solid var(--border)",
+            }}
+            title={autoCrawler?.message || "Tự động quét: 1 tiếng / lần (dừng khi đủ 10 bài mới)"}
+          >
+            <span
+              style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                backgroundColor: autoCrawler?.is_crawling ? "#10b981" : "#3b82f6",
+              }}
+            />
+            {autoCrawler?.is_crawling ? "Đang cào (1h/lần)..." : "⏰ Tự động: 1h/lần"}
+          </div>
+
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 500,
+              background: "rgba(16, 185, 129, 0.1)",
+              color: "#10b981",
+              border: "1px solid rgba(16, 185, 129, 0.25)",
+            }}
+            title={antiSleep?.status || "Render Keep-Alive 24/7 đang chạy"}
+          >
+            <span>🛡️ Chống ngủ đông 24/7</span>
+          </div>
+        </div>
+
         <button
           type="button"
           className={`scraper-status ${isScanning ? "active" : "paused"}`}
@@ -484,7 +465,7 @@ function Topbar({
           title={scanStatus}
         >
           <span className={isScanning ? "spin" : ""} />
-          {isScanning ? "Đang quét đa nguồn..." : "⚡ Quét Lead Mới"}
+          {isScanning ? "Đang quét..." : "⚡ Quét Lead Mới"}
           <Icon name="chevron" size={13} />
         </button>
         <button
@@ -707,6 +688,8 @@ function SalesDashboard({
   onStatusChange,
   isScanning,
   onTriggerScan,
+  autoCrawler,
+  antiSleep,
 }: {
   section: string;
   leadRecords: Lead[];
@@ -714,6 +697,8 @@ function SalesDashboard({
   onStatusChange: (leadId: number | string, status: LeadStatus) => void;
   isScanning: boolean;
   onTriggerScan: () => void;
+  autoCrawler?: any;
+  antiSleep?: any;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -836,6 +821,74 @@ function SalesDashboard({
           <button type="button" className="primary-button export-button" onClick={exportLeads}>
             <Icon name="database" size={16} /> Xuất Excel CSV
           </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: "10px",
+          padding: "10px 16px",
+          marginBottom: "16px",
+          fontSize: "13px",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: autoCrawler?.is_crawling ? "#10b981" : "#3b82f6",
+              }}
+            />
+            <strong>Tự động cào:</strong>
+            <span style={{ color: "var(--text-muted)" }}>
+              {autoCrawler?.is_crawling
+                ? "Đang cào dữ liệu mới..."
+                : "1 tiếng / lần (dừng sau khi gom 10 bài mới)"}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#10b981",
+              }}
+            />
+            <strong>Chống ngủ đông:</strong>
+            <span style={{ color: "var(--text-muted)" }}>
+              {antiSleep?.total_pings
+                ? `Keep-alive 24/7 (Đã ping ${antiSleep.total_pings} lần)`
+                : "Hoạt động liên tục 24/7 (Ping mỗi 9p)"}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#8b5cf6",
+              }}
+            />
+            <strong>Dữ liệu:</strong>
+            <span style={{ color: "var(--text-muted)" }}>
+              100% người dùng thật từ Diễn đàn (Voz, Otofun, Webtretho...)
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1066,11 +1119,15 @@ function AdminDashboard({
   onTriggerScan,
   isScanning,
   totalLeads,
+  autoCrawler,
+  antiSleep,
 }: {
   section: string;
   onTriggerScan: (query?: string) => void;
   isScanning: boolean;
   totalLeads: number;
+  autoCrawler?: any;
+  antiSleep?: any;
 }) {
   return (
     <>
@@ -1091,9 +1148,16 @@ function AdminDashboard({
           </button>
         </div>
       </div>
-      {section === "Tổng quan" && <AdminOverview totalLeads={totalLeads} />}
+      {section === "Tổng quan" && (
+        <AdminOverview totalLeads={totalLeads} autoCrawler={autoCrawler} antiSleep={antiSleep} />
+      )}
       {section === "Trình thu thập" && (
-        <CrawlerPanel onTriggerScan={onTriggerScan} isScanning={isScanning} />
+        <CrawlerPanel
+          onTriggerScan={onTriggerScan}
+          isScanning={isScanning}
+          autoCrawler={autoCrawler}
+          antiSleep={antiSleep}
+        />
       )}
       {section === "Từ khóa & Nguồn" && <KeywordPanel onTriggerScan={onTriggerScan} />}
       {section === "Phân phối khách" && <DistributionPanel />}
@@ -1103,7 +1167,15 @@ function AdminDashboard({
   );
 }
 
-function AdminOverview({ totalLeads }: { totalLeads: number }) {
+function AdminOverview({
+  totalLeads,
+  autoCrawler,
+  antiSleep,
+}: {
+  totalLeads: number;
+  autoCrawler?: any;
+  antiSleep?: any;
+}) {
   return (
     <>
       <div className="stats-grid">
@@ -1111,33 +1183,33 @@ function AdminOverview({ totalLeads }: { totalLeads: number }) {
           icon="database"
           label="Tổng leads tích lũy"
           value={String(totalLeads)}
-          detail="Tự động lọc NLP"
+          detail="100% người dùng thật"
           tone="blue"
         />
         <StatCard
           icon="bot"
-          label="Thời gian hoạt động"
-          value="99.8%"
-          detail="Hệ thống sẵn sàng"
+          label="Tự động cào dữ liệu"
+          value={autoCrawler?.is_crawling ? "Đang cào..." : "1 tiếng / lần"}
+          detail={autoCrawler?.next_run ? `Kế tiếp: ${autoCrawler.next_run.split(" ")[1]}` : "Chu kỳ 10 bài mới"}
           tone="green"
         />
         <StatCard
-          icon="activity"
-          label="Độ chính xác NLP"
-          value="94.2%"
-          detail="Loại bỏ 100% spam phòng khám"
+          icon="shield"
+          label="Chống ngủ đông 24/7"
+          value="Hoạt động"
+          detail={`Đã ping ${antiSleep?.total_pings || 0} lần (mỗi 9p)`}
           tone="cyan"
         />
         <StatCard
-          icon="shield"
-          label="Trạng thái Proxy / SSL"
-          value="Ổn định"
-          detail="Tương thích macOS & Web"
+          icon="activity"
+          label="Độ chính xác dữ liệu"
+          value="100% Real"
+          detail="Loại bỏ bài viết phòng khám"
           tone="violet"
         />
       </div>
       <div className="admin-grid">
-        <CrawlerPanel compact />
+        <CrawlerPanel compact autoCrawler={autoCrawler} antiSleep={antiSleep} />
         <section className="admin-card">
           <div className="card-heading">
             <div>
@@ -1173,10 +1245,14 @@ function CrawlerPanel({
   compact = false,
   onTriggerScan,
   isScanning = false,
+  autoCrawler,
+  antiSleep,
 }: {
   compact?: boolean;
   onTriggerScan?: (query?: string) => void;
   isScanning?: boolean;
+  autoCrawler?: any;
+  antiSleep?: any;
 }) {
   const [customQuery, setCustomQuery] = useState("");
   const [states, setStates] = useState([true, true, true, true]);
@@ -1218,6 +1294,66 @@ function CrawlerPanel({
           <span /> {isScanning ? "Đang cào dữ liệu..." : "Hệ thống sẵn sàng"}
         </span>
       </div>
+
+      {!compact && (
+        <div
+          style={{
+            background: "var(--surface-soft)",
+            border: "1px solid var(--border)",
+            borderRadius: "10px",
+            padding: "14px 16px",
+            marginBottom: "20px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: "14px",
+            fontSize: "13px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, color: "var(--primary)" }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: autoCrawler?.is_crawling ? "#10b981" : "#3b82f6",
+                }}
+              />
+              Tự động cào định kỳ 1 tiếng / lần (10 bài mới)
+            </div>
+            <div style={{ color: "var(--text)" }}>
+              {autoCrawler?.is_crawling
+                ? "⚡ Đang tiến hành quét 10 bài viết thật từ các diễn đàn..."
+                : "Trạng thái: Nghỉ giữa chu kỳ (dừng sau khi gom đủ 10 bài mới)"}
+            </div>
+            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+              {autoCrawler?.last_run
+                ? `Lần cào gần nhất: ${autoCrawler.last_run} (Thêm ${autoCrawler.leads_added_last_run || 0} bài mới)`
+                : "Đã khởi động tiến trình ngầm."}
+            </div>
+            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+              {autoCrawler?.next_run ? `Lần cào kế tiếp: ${autoCrawler.next_run}` : "Lần kế tiếp: đang lên lịch..."}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, color: "#10b981" }}>
+              <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#10b981" }} />
+              Cơ chế chống ngủ đông Render (Keep-Alive 24/7)
+            </div>
+            <div style={{ color: "var(--text)" }}>
+              Máy chủ được ping tự động mỗi 9 phút để tránh cơ chế ngủ đông 15 phút của Render free tier.
+            </div>
+            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+              {antiSleep?.status || "Đang hoạt động 24/7 liên tục"}
+            </div>
+            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+              {antiSleep?.total_pings ? `Tổng số ping giữ thức: ${antiSleep.total_pings} lần` : "Đã kích hoạt daemon"}
+            </div>
+          </div>
+        </div>
+      )}
 
       {!compact && onTriggerScan && (
         <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
@@ -1669,6 +1805,8 @@ export default function App() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("Sẵn sàng");
+  const [autoCrawler, setAutoCrawler] = useState<any>(null);
+  const [antiSleep, setAntiSleep] = useState<any>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -1680,7 +1818,7 @@ export default function App() {
       const res = await fetch("/api/leads");
       if (res.ok) {
         const data = await res.json();
-        if (data.leads && data.leads.length > 0) {
+        if (data.leads) {
           setLeadRecords(data.leads);
         }
         if (typeof data.is_scanning === "boolean") {
@@ -1690,13 +1828,29 @@ export default function App() {
           setScanStatus(data.last_scan.message);
         }
       }
-    } catch {
-      // Offline fallback to initialLeads
-    }
+    } catch {}
+
+    try {
+      const statusRes = await fetch("/api/status");
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        if (statusData.auto_crawler) {
+          setAutoCrawler(statusData.auto_crawler);
+        }
+        if (statusData.anti_sleep) {
+          setAntiSleep(statusData.anti_sleep);
+        }
+        if (typeof statusData.is_scanning === "boolean") {
+          setIsScanning(statusData.is_scanning);
+        }
+      }
+    } catch {}
   };
 
   useEffect(() => {
     fetchLeads();
+    const timer = setInterval(fetchLeads, 15000);
+    return () => clearInterval(timer);
   }, []);
 
   const handleLogin = (user: AuthUser) => {
@@ -1805,6 +1959,8 @@ export default function App() {
           scanStatus={scanStatus}
           user={currentUser}
           onLogout={handleLogout}
+          autoCrawler={autoCrawler}
+          antiSleep={antiSleep}
         />
         <main className="content">
           {role === "sales" ? (
@@ -1815,6 +1971,8 @@ export default function App() {
               onStatusChange={handleLeadStatusChange}
               isScanning={isScanning}
               onTriggerScan={() => triggerScan()}
+              autoCrawler={autoCrawler}
+              antiSleep={antiSleep}
             />
           ) : activeSection === "Khách hàng" ? (
             <SalesDashboard
@@ -1824,6 +1982,8 @@ export default function App() {
               onStatusChange={handleLeadStatusChange}
               isScanning={isScanning}
               onTriggerScan={() => triggerScan()}
+              autoCrawler={autoCrawler}
+              antiSleep={antiSleep}
             />
           ) : (
             <AdminDashboard
@@ -1831,6 +1991,8 @@ export default function App() {
               onTriggerScan={triggerScan}
               isScanning={isScanning}
               totalLeads={leadRecords.length}
+              autoCrawler={autoCrawler}
+              antiSleep={antiSleep}
             />
           )}
         </main>

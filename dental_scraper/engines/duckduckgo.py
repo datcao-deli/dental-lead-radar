@@ -54,12 +54,22 @@ class DuckDuckGoEngine(BaseEngine):
                     except Exception:
                         pass
 
+                # Enforce site: domain restriction if specified
+                required_domain = ""
+                if "site:" in clean_query:
+                    parts = clean_query.split("site:")
+                    if len(parts) > 1:
+                        required_domain = parts[1].split()[0].replace('"', '').strip().lower()
+
                 for r in results:
                     title = r.get("title", "")
                     snippet = r.get("body", "")
                     url = r.get("href", "")
 
                     if not title or not url:
+                        continue
+
+                    if required_domain and required_domain not in url.lower():
                         continue
 
                     lead = IntentAnalyzer.analyze(title=title, snippet=snippet, url=url)

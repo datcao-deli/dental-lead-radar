@@ -5,7 +5,7 @@ Identifies real patients seeking dental treatments vs clinics posting promotiona
 
 import re
 from typing import Tuple, List, Dict, Any
-from .config import DENTAL_CATEGORIES, INTENT_SIGNALS, AD_SPAM_SIGNALS, LOCATIONS
+from .config import DENTAL_CATEGORIES, INTENT_SIGNALS, AD_SPAM_SIGNALS, LOCATIONS, COMMERCIAL_BLOG_DOMAINS
 from .models import LeadItem
 
 class IntentAnalyzer:
@@ -52,10 +52,27 @@ class IntentAnalyzer:
         title_clean = cls.clean_text(title)
         snippet_clean = cls.clean_text(snippet)
         full_text = f"{title_clean} {snippet_clean}".lower()
+        url_lower = url.lower()
 
         matched_kws: List[str] = []
         base_score = 0
         is_spam_ad = False
+
+        # 0. Check for Commercial clinic blogs, SEO sites, and non-leads
+        for cdom in COMMERCIAL_BLOG_DOMAINS:
+            if cdom in url_lower:
+                is_spam_ad = True
+                base_score -= 60
+                break
+
+        title_lower = title_clean.lower()
+        if "bảng giá" in title_lower or "quy trình" in title_lower:
+            is_spam_ad = True
+            base_score -= 50
+
+        # Boost real forum / community discussion threads
+        if any(f in url_lower for f in ["voz.vn", "tinhte.vn", "webtretho.com", "reddit.com", "facebook.com", "otofun.net"]):
+            base_score += 25
 
         # 1. Check for Clinic Ad / Marketing signals (Penalties)
         ad_count = 0

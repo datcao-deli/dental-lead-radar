@@ -88,6 +88,16 @@ AD_SPAM_SIGNALS: List[str] = [
     "tài trợ", "tài trợ 100%"
 ]
 
+# Commercial clinic / SEO marketing domains to exclude (not real patient leads)
+COMMERCIAL_BLOG_DOMAINS: List[str] = [
+    "nhathuoclongchau.com.vn", "tamanhhospital.vn", "nhakhoaident.com", "nhakhoakim.com",
+    "drcareimplant.com", "bookingcare.vn", "benhvienthammygangwhoo.com", "nhakhoaparis.vn",
+    "nhakhoalacviet.vn", "nhakhoaquoctephuhoa.vn", "nhakhoaparkway.com", "bedental.vn",
+    "nhakhoasmileone.vn", "nhakhoashark.vn", "vinmec.com", "medlatec.vn", "hellobacsi.com",
+    "wikipedia.org", "youtube.com", "wielkiezarcie.com", "superuser.com", "dell.com",
+    "tudientiengviet.org", "soha.vn", "sourceforge.net"
+]
+
 # Geographic locations for location matching
 LOCATIONS: Dict[str, List[str]] = {
     "Hà Nội": ["hà nội", "hn", "cầu giấy", "đống đa", "ba đình", "hoàn kiếm", "thanh xuân", "hai bà trưng", "hoàng mai", "hà đông", "long biên", "tây hồ"],
@@ -102,44 +112,44 @@ LOCATIONS: Dict[str, List[str]] = {
 # High-conversion intent queries that discover real patient questions across forums & social media
 DEFAULT_SEARCH_QUERIES: List[Dict[str, str]] = [
     {
-        "name": "Nhổ răng khôn - Hỏi kinh nghiệm & địa chỉ",
-        "dork": '"nhổ răng khôn" "cho em hỏi"'
-    },
-    {
-        "name": "Nhổ răng khôn - Review chi phí & đau nhức",
-        "dork": '"nhổ răng khôn" "review"'
-    },
-    {
-        "name": "Đau răng / Viêm tủy - Cần tư vấn gấp",
-        "dork": '"đau răng" "cho em hỏi"'
-    },
-    {
-        "name": "Niềng răng - Xin review kinh nghiệm",
-        "dork": '"niềng răng" "kinh nghiệm"'
-    },
-    {
-        "name": "Niềng răng - Hỏi chi phí & bác sĩ",
-        "dork": '"niềng răng" "cho em hỏi"'
-    },
-    {
-        "name": "Trồng răng Implant - Xin review & giá",
-        "dork": '"trồng răng implant" "giá bao nhiêu"'
-    },
-    {
-        "name": "Tìm phòng khám nha khoa uy tín Hà Nội",
-        "dork": '"nhổ răng khôn" "Hà Nội" "uy tín"'
-    },
-    {
-        "name": "Tìm phòng khám nha khoa uy tín Sài Gòn",
-        "dork": '"nhổ răng khôn" "Sài Gòn" "uy tín"'
-    },
-    {
-        "name": "Voz Forum - Thảo luận răng miệng",
+        "name": "Voz Forum - Nhổ răng khôn kinh nghiệm & review",
         "dork": '"nhổ răng khôn" site:voz.vn'
     },
     {
-        "name": "Diễn đàn - Kinh nghiệm niềng răng",
-        "dork": '"niềng răng" site:otofun.net.vn'
+        "name": "Voz Forum - Niềng răng & chỉnh nha thực tế",
+        "dork": '"niềng răng" site:voz.vn'
+    },
+    {
+        "name": "Voz Forum - Đau răng & điều trị tủy",
+        "dork": '"đau răng" site:voz.vn'
+    },
+    {
+        "name": "Voz Forum - Cấy ghép & trồng răng Implant",
+        "dork": '"implant" site:voz.vn'
+    },
+    {
+        "name": "Voz Forum - Hỏi đáp nha khoa uy tín",
+        "dork": '"nha khoa" site:voz.vn'
+    },
+    {
+        "name": "Tinhte Forum - Review nhổ răng & nha khoa",
+        "dork": '"nhổ răng khôn" site:tinhte.vn'
+    },
+    {
+        "name": "Hỏi đáp cộng đồng - Nhổ răng khôn kinh nghiệm",
+        "dork": '"cho mình hỏi" "nhổ răng khôn"'
+    },
+    {
+        "name": "Hỏi đáp cộng đồng - Xin review nha khoa uy tín",
+        "dork": '"cho mình hỏi" "review nha khoa"'
+    },
+    {
+        "name": "Hỏi đáp cộng đồng - Niềng răng chi phí & đau",
+        "dork": '"cho em hỏi" "niềng răng"'
+    },
+    {
+        "name": "Hỏi đáp cộng đồng - Trồng răng Implant review",
+        "dork": '"trồng răng implant" "kinh nghiệm"'
     }
 ]
 
