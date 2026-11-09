@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
 from .cli import DentalLeadScanner
-from .config import COMMERCIAL_BLOG_DOMAINS
+from .config import COMMERCIAL_BLOG_DOMAINS, DANANG_DISTRICTS, AD_SPAM_SIGNALS
 from .exporters import CSVExporter, JSONExporter, HTMLExporter
 from .models import LeadItem
 
@@ -159,7 +159,7 @@ def save_leads_to_disk(leads: List[Dict[str, Any]]) -> None:
             urgency=l.get("urgency", "Trung bình"),
             intent_score=int(l.get("intent_score", l.get("score", 50))),
             lead_quality=l.get("lead_quality", "WARM"),
-            location=l.get("location", "Toàn quốc"),
+            location=l.get("location", "Đà Nẵng"),
             matched_keywords=l.get("matched_keywords", [])
         ))
     CSVExporter.export(lead_items, CSV_FILE)
@@ -174,7 +174,7 @@ auto_crawler_state = {
     "next_run": None,
     "leads_added_last_run": 0,
     "total_runs": 0,
-    "message": "Đang chạy chế độ tự động cào: 1 tiếng / lần (dừng sau khi đủ 10 bài mới)"
+    "message": "Đang chạy chế độ tự động cào: 1 tiếng / lần tại Đà Nẵng (dừng sau khi đủ 10 bài mới)"
 }
 
 anti_sleep_state = {
@@ -219,36 +219,50 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
 
     added_leads = []
     
-    # Target real Vietnamese patient discussion queries
+    # Target real patient inquiry queries in Đà Nẵng
     queries_to_run = [
-        '"nhổ răng khôn" site:voz.vn',
-        '"niềng răng" site:voz.vn',
-        '"đau răng" site:voz.vn',
-        '"implant" site:voz.vn',
-        '"nha khoa" site:voz.vn',
-        '"nhổ răng khôn" site:tinhte.vn',
-        '"cho mình hỏi" "nhổ răng khôn"',
-        '"cho mình hỏi" "review nha khoa"',
-        '"cho em hỏi" "niềng răng"',
-        '"trồng răng implant" "kinh nghiệm"'
+        'site:voz.vn "Đà Nẵng" "đau răng"',
+        'site:voz.vn "Đà Nẵng" "nhổ răng"',
+        'site:voz.vn "Đà Nẵng" "khám răng"',
+        'site:voz.vn "Đà Nẵng" "implant"',
+        'site:voz.vn "Đà Nẵng" "niềng răng"',
+        'site:voz.vn "Đà Nẵng" "làm răng"',
+        'site:voz.vn "Đà Nẵng" "răng"',
+        'site:voz.vn "Đà Nẵng" "răng khôn"',
+        'site:facebook.com "Đà Nẵng" "đau răng"',
+        'site:facebook.com "Đà Nẵng" "nhổ răng khôn"',
+        'site:facebook.com "Đà Nẵng" "niềng răng"',
+        'site:tinhte.vn "Đà Nẵng" "răng"',
+        'site:webtretho.com "Đà Nẵng" "răng"'
     ]
 
     if custom_query:
+        if "đà nẵng" not in custom_query.lower() and "da nang" not in custom_query.lower():
+            custom_query = f'"Đà Nẵng" {custom_query}'
         queries_to_run.insert(0, custom_query)
 
     for q in queries_to_run:
         if len(added_leads) >= target_new:
             break
         try:
-            results = scanner.ddg.search(q, limit=5)
+            results = scanner.ddg.search(q, limit=8)
             for r in results:
                 url_lower = r.url.lower()
-                # Exclude commercial clinic ads & blogs
+                full_text = f"{r.title} {r.snippet}".lower()
+
+                # 1. Location requirement: MUST be in Da Nang
+                if not any(dm in full_text for dm in DANANG_DISTRICTS) and not any(dm in url_lower for dm in DANANG_DISTRICTS):
+                    continue
+
+                # 2. Exclude commercial clinic ads & procedure-describing blogs
                 if any(cd in url_lower for cd in COMMERCIAL_BLOG_DOMAINS):
                     continue
-                if r.url in existing_urls or str(r.id) in existing_ids:
+                if any(spam_word in full_text for spam_word in AD_SPAM_SIGNALS):
                     continue
-                if r.lead_quality == "SPAM_AD" or r.intent_score < 35:
+                if r.lead_quality == "SPAM_AD" or r.intent_score < 30:
+                    continue
+
+                if r.url in existing_urls or str(r.id) in existing_ids:
                     continue
 
                 existing_urls.add(r.url)
@@ -266,12 +280,13 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
                 lead_dict["phone"] = extract_phone_from_text(f"{r.title} {r.snippet}")
                 lead_dict["need"] = r.category_label
                 lead_dict["status"] = "New"
+                lead_dict["location"] = "Đà Nẵng"
                 lead_dict["agent"] = "Chưa phân công"
                 lead_dict["agentInitials"] = "—"
                 lead_dict["score"] = r.intent_score
                 lead_dict["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 lead_dict["post"] = f"{r.title} — {r.snippet}".strip()
-                lead_dict["note"] = f"Dữ liệu thật từ {r.platform}. Độ tin cậy ý định: {r.intent_score}đ."
+                lead_dict["note"] = f"Khách hàng có nhu cầu tại Đà Nẵng qua {r.platform}. Độ tin cậy ý định: {r.intent_score}đ."
 
                 added_leads.append(lead_dict)
                 if len(added_leads) >= target_new:

@@ -456,6 +456,24 @@ function Topbar({
           >
             <span>🛡️ Chống ngủ đông 24/7</span>
           </div>
+
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 600,
+              background: "rgba(14, 165, 233, 0.12)",
+              color: "#0284c7",
+              border: "1px solid rgba(14, 165, 233, 0.3)",
+            }}
+            title="Hệ thống chỉ quét và thu thập khách hàng có nhu cầu tại TP. Đà Nẵng"
+          >
+            <span>📍 Khu vực: Đà Nẵng</span>
+          </div>
         </div>
 
         <button
@@ -796,17 +814,17 @@ function SalesDashboard({
           <span className="breadcrumb">Khu vực kinh doanh / {section}</span>
           <h1>
             {section === "Cần chăm sóc"
-              ? "Khách hàng cần chăm sóc"
+              ? "Khách hàng cần chăm sóc (Đà Nẵng)"
               : section === "Đã đặt lịch"
-                ? "Khách hàng đã đặt lịch"
-                : "Danh sách khách hàng tiềm năng"}
+                ? "Khách hàng đã đặt lịch (Đà Nẵng)"
+                : "Danh sách khách hàng tiềm năng tại Đà Nẵng"}
           </h1>
           <p>
             {section === "Cần chăm sóc"
-              ? "Những khách hàng có nhu cầu khám răng đang cần được liên hệ tư vấn tiếp."
+              ? "Những khách hàng có nhu cầu khám răng tại Đà Nẵng đang cần được liên hệ tư vấn tiếp."
               : section === "Đã đặt lịch"
-                ? "Theo dõi các khách hàng đã xác nhận lịch hẹn khám với phòng khám."
-                : "Toàn bộ khách hàng có nhu cầu nha khoa được hệ thống AI tự động phát hiện."}
+                ? "Theo dõi các khách hàng đã xác nhận lịch hẹn khám tại khu vực Đà Nẵng."
+                : "Toàn bộ khách hàng có nhu cầu khám răng, đau răng, làm răng tại khu vực Đà Nẵng do hệ thống AI phát hiện."}
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -816,7 +834,7 @@ function SalesDashboard({
             onClick={onTriggerScan}
             disabled={isScanning}
           >
-            <Icon name="bot" size={16} /> {isScanning ? "Đang quét..." : "Quét Leads Mới"}
+            <Icon name="bot" size={16} /> {isScanning ? "Đang quét..." : "Quét Leads Mới (Đà Nẵng)"}
           </button>
           <button type="button" className="primary-button export-button" onClick={exportLeads}>
             <Icon name="database" size={16} /> Xuất Excel CSV
@@ -840,6 +858,21 @@ function SalesDashboard({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#0284c7",
+              }}
+            />
+            <strong>Khu vực:</strong>
+            <span style={{ color: "#0284c7", fontWeight: 600 }}>
+              100% Đà Nẵng (Hải Châu, Thanh Khê, Sơn Trà, Cẩm Lệ, Liên Chiểu...)
+            </span>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span
               style={{
@@ -886,7 +919,7 @@ function SalesDashboard({
             />
             <strong>Dữ liệu:</strong>
             <span style={{ color: "var(--text-muted)" }}>
-              100% người dùng thật từ Diễn đàn (Voz, Otofun, Webtretho...)
+              100% người dùng thật có nhu cầu tại Đà Nẵng (Đã loại trừ bài viết phòng khám)
             </span>
           </div>
         </div>
@@ -1181,16 +1214,16 @@ function AdminOverview({
       <div className="stats-grid">
         <StatCard
           icon="database"
-          label="Tổng leads tích lũy"
+          label="Tổng leads tại Đà Nẵng"
           value={String(totalLeads)}
           detail="100% người dùng thật"
           tone="blue"
         />
         <StatCard
           icon="bot"
-          label="Tự động cào dữ liệu"
+          label="Tự động cào tại Đà Nẵng"
           value={autoCrawler?.is_crawling ? "Đang cào..." : "1 tiếng / lần"}
-          detail={autoCrawler?.next_run ? `Kế tiếp: ${autoCrawler.next_run.split(" ")[1]}` : "Chu kỳ 10 bài mới"}
+          detail={autoCrawler?.next_run ? `Kế tiếp: ${autoCrawler.next_run.split(" ")[1]}` : "Chu kỳ 10 bài mới (ĐN)"}
           tone="green"
         />
         <StatCard
@@ -1203,8 +1236,8 @@ function AdminOverview({
         <StatCard
           icon="activity"
           label="Độ chính xác dữ liệu"
-          value="100% Real"
-          detail="Loại bỏ bài viết phòng khám"
+          value="100% Bệnh nhân"
+          detail="Loại bỏ hoàn toàn bài quảng cáo phòng khám"
           tone="violet"
         />
       </div>
@@ -1320,12 +1353,12 @@ function CrawlerPanel({
                   background: autoCrawler?.is_crawling ? "#10b981" : "#3b82f6",
                 }}
               />
-              Tự động cào định kỳ 1 tiếng / lần (10 bài mới)
+              Tự động cào định kỳ 1 tiếng / lần tại Đà Nẵng (10 bài mới)
             </div>
             <div style={{ color: "var(--text)" }}>
               {autoCrawler?.is_crawling
-                ? "⚡ Đang tiến hành quét 10 bài viết thật từ các diễn đàn..."
-                : "Trạng thái: Nghỉ giữa chu kỳ (dừng sau khi gom đủ 10 bài mới)"}
+                ? "⚡ Đang tiến hành quét 10 bài viết thật từ bệnh nhân tại Đà Nẵng..."
+                : "Trạng thái: Nghỉ giữa chu kỳ (dừng sau khi gom đủ 10 bài mới tại Đà Nẵng)"}
             </div>
             <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
               {autoCrawler?.last_run
@@ -1366,7 +1399,7 @@ function CrawlerPanel({
               padding: "10px 14px",
               color: "var(--text)",
             }}
-            placeholder="Nhập từ khóa quét tùy chọn (ví dụ: 'nhổ răng khôn Hà Nội', 'niềng răng trả góp')..."
+            placeholder="Nhập từ khóa quét tại Đà Nẵng (ví dụ: 'đau răng Hải Châu', 'nhổ răng khôn Sơn Trà')..."
             value={customQuery}
             onChange={(e) => setCustomQuery(e.target.value)}
           />

@@ -77,7 +77,7 @@ INTENT_SIGNALS: List[str] = [
     "buốt tận óc", "đau phát khóc", "chịu không nổi"
 ]
 
-# Signals indicating marketing / spam / clinics promoting themselves
+# Signals indicating marketing / spam / clinics promoting themselves or describing procedures
 AD_SPAM_SIGNALS: List[str] = [
     "khuyến mãi", "ưu đãi", "giảm giá", "voucher", "bảng giá 2024", "bảng giá 2025", "bảng giá 2026",
     "nha khoa chúng tôi", "đội ngũ bác sĩ hàng đầu", "công nghệ châu âu",
@@ -85,7 +85,12 @@ AD_SPAM_SIGNALS: List[str] = [
     "tuyển dụng", "tuyển phụ tá", "tuyển điều dưỡng", "tuyển bác sĩ",
     "chính sách bảo hành", "hệ thống nha khoa", "chuỗi phòng khám",
     "khách hàng sau khi", "cam kết hoàn tiền", "quà tặng hấp dẫn",
-    "tài trợ", "tài trợ 100%"
+    "tài trợ", "tài trợ 100%", "piezotome", "sóng siêu âm", "cắt nhẹ nhàng",
+    "tách dây chằng", "xâm lấn", "đặt bông cầm máu", "khâu đóng", "ổ răng",
+    "bác sĩ kiểm tra kỹ", "quy trình thực hiện", "các bước thực hiện", "tại nha khoa",
+    "phòng khám chuyên khoa", "bảng giá", "top 5 địa chỉ", "top 10 địa chỉ", "top 7 địa chỉ",
+    "top 8 địa chỉ", "địa chỉ uy tín tại", "chi phí chỉ từ", "liên hệ ngay", "ưu đãi lớn",
+    "chăm sóc sau khi nhổ", "lợi ích của việc", "là phương pháp", "giúp bạn khắc phục"
 ]
 
 # Commercial clinic / SEO marketing domains to exclude (not real patient leads)
@@ -94,62 +99,66 @@ COMMERCIAL_BLOG_DOMAINS: List[str] = [
     "drcareimplant.com", "bookingcare.vn", "benhvienthammygangwhoo.com", "nhakhoaparis.vn",
     "nhakhoalacviet.vn", "nhakhoaquoctephuhoa.vn", "nhakhoaparkway.com", "bedental.vn",
     "nhakhoasmileone.vn", "nhakhoashark.vn", "vinmec.com", "medlatec.vn", "hellobacsi.com",
+    "nhakhoadana.com", "nhakhoaimplantdanang.com", "benhvienranghammatdn.vn", "nhakhoano1.vn",
+    "nhakhoavietphapdn.com", "chingodental.vn", "topnhakhoa.com", "reviewnhakhoa.com",
+    "hellodanang.vn", "top10danang.com", "bacsidanang.com", "idcdanang.com", "top360.vn",
+    "hanamihotel.com", "topaz.vn", "nhakhoadaisy.vn", "nhakhoathammy.com", "vindentist.vn",
     "wikipedia.org", "youtube.com", "wielkiezarcie.com", "superuser.com", "dell.com",
     "tudientiengviet.org", "soha.vn", "sourceforge.net"
 ]
 
-# Geographic locations for location matching
+# Strict Da Nang districts & keywords - ONLY Đà Nẵng leads accepted
+DANANG_DISTRICTS: List[str] = [
+    "đà nẵng", "da nang", "hải châu", "thanh khê", "sơn trà", 
+    "ngũ hành sơn", "liên chiểu", "cẩm lệ", "hòa vang"
+]
+
+# Geographic locations for location matching (Filtered to Đà Nẵng)
 LOCATIONS: Dict[str, List[str]] = {
-    "Hà Nội": ["hà nội", "hn", "cầu giấy", "đống đa", "ba đình", "hoàn kiếm", "thanh xuân", "hai bà trưng", "hoàng mai", "hà đông", "long biên", "tây hồ"],
-    "TP. Hồ Chí Minh": ["hồ chí minh", "hcm", "tp hcm", "sài gòn", "q1", "q3", "q5", "q7", "q10", "bình thạnh", "thủ đức", "tân bình", "gò vấp", "phú nhuận"],
-    "Đà Nẵng": ["đà nẵng", "hải châu", "thanh khê", "sơn trà"],
-    "Hải Phòng": ["hải phòng", "ngô quyền", "lê chân"],
-    "Cần Thơ": ["cần thơ", "ninh kiều"],
-    "Bình Dương": ["bình dương", "thủ dầu một", "dĩ an", "thuận an"],
-    "Đồng Nai": ["đồng nai", "biên hòa"]
+    "Đà Nẵng": DANANG_DISTRICTS
 }
 
-# High-conversion intent queries that discover real patient questions across forums & social media
+# High-conversion intent queries focused STRICTLY on real patient inquiries in Đà Nẵng
 DEFAULT_SEARCH_QUERIES: List[Dict[str, str]] = [
     {
-        "name": "Voz Forum - Nhổ răng khôn kinh nghiệm & review",
-        "dork": '"nhổ răng khôn" site:voz.vn'
+        "name": "Voz Forum Đà Nẵng - Khám & điều trị đau răng",
+        "dork": 'site:voz.vn "Đà Nẵng" "đau răng"'
     },
     {
-        "name": "Voz Forum - Niềng răng & chỉnh nha thực tế",
-        "dork": '"niềng răng" site:voz.vn'
+        "name": "Voz Forum Đà Nẵng - Nhổ răng khôn",
+        "dork": 'site:voz.vn "Đà Nẵng" "nhổ răng"'
     },
     {
-        "name": "Voz Forum - Đau răng & điều trị tủy",
-        "dork": '"đau răng" site:voz.vn'
+        "name": "Voz Forum Đà Nẵng - Khám răng & nha khoa",
+        "dork": 'site:voz.vn "Đà Nẵng" "khám răng"'
     },
     {
-        "name": "Voz Forum - Cấy ghép & trồng răng Implant",
-        "dork": '"implant" site:voz.vn'
+        "name": "Voz Forum Đà Nẵng - Trồng răng Implant",
+        "dork": 'site:voz.vn "Đà Nẵng" "implant"'
     },
     {
-        "name": "Voz Forum - Hỏi đáp nha khoa uy tín",
-        "dork": '"nha khoa" site:voz.vn'
+        "name": "Voz Forum Đà Nẵng - Niềng răng & chỉnh nha",
+        "dork": 'site:voz.vn "Đà Nẵng" "niềng răng"'
     },
     {
-        "name": "Tinhte Forum - Review nhổ răng & nha khoa",
-        "dork": '"nhổ răng khôn" site:tinhte.vn'
+        "name": "Voz Forum Đà Nẵng - Làm răng & bọc sứ",
+        "dork": 'site:voz.vn "Đà Nẵng" "làm răng"'
     },
     {
-        "name": "Hỏi đáp cộng đồng - Nhổ răng khôn kinh nghiệm",
-        "dork": '"cho mình hỏi" "nhổ răng khôn"'
+        "name": "Voz Forum Đà Nẵng - Răng mọc ngầm & mọc lệch",
+        "dork": 'site:voz.vn "Đà Nẵng" "răng"'
     },
     {
-        "name": "Hỏi đáp cộng đồng - Xin review nha khoa uy tín",
-        "dork": '"cho mình hỏi" "review nha khoa"'
+        "name": "Hỏi đáp Facebook Đà Nẵng - Đau răng & khám răng",
+        "dork": 'site:facebook.com "Đà Nẵng" "đau răng"'
     },
     {
-        "name": "Hỏi đáp cộng đồng - Niềng răng chi phí & đau",
-        "dork": '"cho em hỏi" "niềng răng"'
+        "name": "Hỏi đáp Facebook Đà Nẵng - Nhổ răng khôn review",
+        "dork": 'site:facebook.com "Đà Nẵng" "nhổ răng khôn"'
     },
     {
-        "name": "Hỏi đáp cộng đồng - Trồng răng Implant review",
-        "dork": '"trồng răng implant" "kinh nghiệm"'
+        "name": "Hỏi đáp Facebook Đà Nẵng - Niềng răng review",
+        "dork": 'site:facebook.com "Đà Nẵng" "niềng răng"'
     }
 ]
 

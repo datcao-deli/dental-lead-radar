@@ -5,7 +5,7 @@ Identifies real patients seeking dental treatments vs clinics posting promotiona
 
 import re
 from typing import Tuple, List, Dict, Any
-from .config import DENTAL_CATEGORIES, INTENT_SIGNALS, AD_SPAM_SIGNALS, LOCATIONS, COMMERCIAL_BLOG_DOMAINS
+from .config import DENTAL_CATEGORIES, INTENT_SIGNALS, AD_SPAM_SIGNALS, LOCATIONS, COMMERCIAL_BLOG_DOMAINS, DANANG_DISTRICTS
 from .models import LeadItem
 
 class IntentAnalyzer:
@@ -39,13 +39,10 @@ class IntentAnalyzer:
     @classmethod
     def extract_location(cls, combined_text: str) -> str:
         text_lower = combined_text.lower()
-        for city, keywords in LOCATIONS.items():
-            for kw in keywords:
-                # Use word boundary where appropriate
-                pattern = r'(?<!\w)' + re.escape(kw) + r'(?!\w)'
-                if re.search(pattern, text_lower):
-                    return city
-        return "Toàn quốc"
+        for kw in DANANG_DISTRICTS:
+            if kw in text_lower:
+                return "Đà Nẵng"
+        return "Ngoài Đà Nẵng"
 
     @classmethod
     def analyze(cls, title: str, snippet: str, url: str = "", author: str = "Ẩn danh", published_date: str = "") -> LeadItem:
@@ -58,38 +55,41 @@ class IntentAnalyzer:
         base_score = 0
         is_spam_ad = False
 
-        # 0. Check for Commercial clinic blogs, SEO sites, and non-leads
+        # 0. Strict Location Filter: ONLY Đà Nẵng accepted
+        is_danang = any(d in full_text for d in DANANG_DISTRICTS) or any(d in url_lower for d in DANANG_DISTRICTS)
+        if not is_danang:
+            is_spam_ad = True
+            base_score = -100
+
+        # 1. Check for Commercial clinic blogs, SEO sites, and non-leads
         for cdom in COMMERCIAL_BLOG_DOMAINS:
             if cdom in url_lower:
                 is_spam_ad = True
-                base_score -= 60
+                base_score -= 80
                 break
 
         title_lower = title_clean.lower()
-        if "bảng giá" in title_lower or "quy trình" in title_lower:
+        if "bảng giá" in title_lower or "quy trình" in title_lower or "chi phí" in title_lower:
             is_spam_ad = True
-            base_score -= 50
+            base_score -= 60
+
+        # 2. Check for Clinic procedural & marketing signals
+        for ad_kw in AD_SPAM_SIGNALS:
+            if ad_kw in full_text:
+                is_spam_ad = True
+                base_score -= 40
+                break
 
         # Boost real forum / community discussion threads
         if any(f in url_lower for f in ["voz.vn", "tinhte.vn", "webtretho.com", "reddit.com", "facebook.com", "otofun.net"]):
-            base_score += 25
+            base_score += 35
 
-        # 1. Check for Clinic Ad / Marketing signals (Penalties)
-        ad_count = 0
-        for ad_kw in AD_SPAM_SIGNALS:
-            if ad_kw in full_text:
-                ad_count += 1
-                base_score -= 25
-
-        if ad_count >= 2:
-            is_spam_ad = True
-
-        # 2. Check for Patient Intent Signals (Inquiry, Personal Need, Pain)
+        # 3. Check for Patient Intent Signals (Inquiry, Personal Need, Pain)
         intent_matches = []
         for signal in INTENT_SIGNALS:
             if signal in full_text:
                 intent_matches.append(signal)
-                base_score += 18
+                base_score += 20
                 if signal not in matched_kws:
                     matched_kws.append(signal)
 
