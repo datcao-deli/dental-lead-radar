@@ -1,0 +1,1530 @@
+import { useEffect, useMemo, useState } from "react";
+
+type Role = "sales" | "admin";
+type LeadStatus = "New" | "Contacted" | "Booking" | "Qualified" | "Lost";
+type IconName =
+  | "activity"
+  | "bell"
+  | "bot"
+  | "briefcase"
+  | "calendar"
+  | "chart"
+  | "check"
+  | "chevron"
+  | "close"
+  | "columns"
+  | "database"
+  | "external"
+  | "filter"
+  | "key"
+  | "lead"
+  | "menu"
+  | "moon"
+  | "more"
+  | "notes"
+  | "pause"
+  | "play"
+  | "search"
+  | "settings"
+  | "shield"
+  | "sun"
+  | "users";
+
+export type Lead = {
+  id: number | string;
+  name: string;
+  platform: "Facebook" | "TikTok" | "Threads" | "Voz" | "Web" | "Otofun";
+  handle: string;
+  phone: string;
+  need: string;
+  location: string;
+  status: LeadStatus;
+  agent: string;
+  agentInitials: string;
+  score: number;
+  time: string;
+  post: string;
+  note: string;
+  url?: string;
+};
+
+const initialLeads: Lead[] = [
+  {
+    id: "lead_1",
+    name: "Nguyễn Minh Anh",
+    platform: "Facebook",
+    handle: "@minhanh.nguyen",
+    phone: "0905 382 147",
+    need: "Niềng răng",
+    location: "Hà Nội",
+    status: "New",
+    agent: "Linh Nguyễn",
+    agentInitials: "LN",
+    score: 94,
+    time: "12 phút trước",
+    post: "Mọi người cho mình xin review chỗ niềng răng uy tín ở Hà Nội với ạ. Chi phí tầm bao nhiêu?",
+    note: "Lead có nhu cầu rõ ràng, hỏi trực tiếp về chi phí.",
+    url: "https://facebook.com",
+  },
+  {
+    id: "lead_2",
+    name: "Trần Quốc Bảo",
+    platform: "Voz",
+    handle: "@quocbao.voz",
+    phone: "0935 771 820",
+    need: "Trồng Răng / Cấy Ghép Implant",
+    location: "TP. Hồ Chí Minh",
+    status: "Contacted",
+    agent: "Huy Phạm",
+    agentInitials: "HP",
+    score: 88,
+    time: "28 phút trước",
+    post: "Ba mình bị mất răng lâu năm, đang tìm hiểu trồng implant ở Sài Gòn, chỗ nào bác sĩ tay nghề cao?",
+    note: "Khách cần tư vấn phương án implant all-on-4.",
+    url: "https://voz.vn",
+  },
+  {
+    id: "lead_3",
+    name: "Lê Hoàng Vy",
+    platform: "Web",
+    handle: "@hoangvy.web",
+    phone: "Chưa có SĐT",
+    need: "Bọc Răng Sứ / Dán Sứ Thẩm Mỹ",
+    location: "Đà Nẵng",
+    status: "Booking",
+    agent: "Linh Nguyễn",
+    agentInitials: "LN",
+    score: 91,
+    time: "41 phút trước",
+    post: "Muốn làm răng sứ mà sợ bị mài nhiều, có nha khoa nào tư vấn kỹ dán sứ veneer không mọi người?",
+    note: "Đã hẹn tư vấn online lúc 14:30 ngày mai.",
+    url: "https://webtretho.com",
+  },
+  {
+    id: "lead_4",
+    name: "Phạm Tuấn Kiệt",
+    platform: "Facebook",
+    handle: "@tuan.kiet.98",
+    phone: "0777 214 590",
+    need: "Nhổ Răng Khôn (Số 8)",
+    location: "Hà Nội",
+    status: "Qualified",
+    agent: "Mai Trần",
+    agentInitials: "MT",
+    score: 86,
+    time: "1 giờ trước",
+    post: "Răng khôn hàm dưới đau nhức buốt lên đầu mấy hôm nay, cần tìm chỗ nhổ siêu âm không đau ở Cầu Giấy.",
+    note: "Khách đau cấp, có thể tiếp nhận trong ngày.",
+    url: "https://facebook.com",
+  },
+];
+
+const statusOptions: LeadStatus[] = ["New", "Contacted", "Booking", "Qualified", "Lost"];
+
+const statusLabels: Record<LeadStatus, string> = {
+  New: "Mới",
+  Contacted: "Cần chăm sóc",
+  Booking: "Đã đặt lịch",
+  Qualified: "Tiềm năng",
+  Lost: "Không phù hợp",
+};
+
+function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+  const paths: Record<IconName, React.ReactNode> = {
+    activity: <path d="M3 12h3l2.2-6 4.1 12 2.2-6H21" />,
+    bell: (
+      <>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
+      </>
+    ),
+    bot: (
+      <>
+        <rect x="4" y="7" width="16" height="12" rx="3" />
+        <path d="M9 11h.01M15 11h.01M9 15h6M12 7V3M9 3h6" />
+      </>
+    ),
+    briefcase: (
+      <>
+        <rect x="3" y="7" width="18" height="13" rx="2" />
+        <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
+      </>
+    ),
+    chart: <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />,
+    check: <path d="m5 12 4 4L19 6" />,
+    chevron: <path d="m9 18 6-6-6-6" />,
+    close: <path d="M18 6 6 18M6 6l12 12" />,
+    columns: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16M15 4v16" />
+      </>
+    ),
+    database: (
+      <>
+        <ellipse cx="12" cy="5" rx="8" ry="3" />
+        <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+      </>
+    ),
+    external: (
+      <>
+        <path d="M15 3h6v6M10 14 21 3" />
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </>
+    ),
+    filter: <path d="M3 4h18l-7 8v6l-4 2v-8Z" />,
+    key: (
+      <>
+        <circle cx="8" cy="15" r="4" />
+        <path d="m11 12 8-8M15 8l3 3M17 6l2 2" />
+      </>
+    ),
+    lead: (
+      <>
+        <circle cx="9" cy="8" r="4" />
+        <path d="M3 21a6 6 0 0 1 12 0M17 8h4M19 6v4" />
+      </>
+    ),
+    menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+    moon: <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />,
+    more: <path d="M5 12h.01M12 12h.01M19 12h.01" />,
+    notes: (
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+        <path d="M14 2v6h6M8 13h8M8 17h6" />
+      </>
+    ),
+    pause: (
+      <>
+        <path d="M8 5v14M16 5v14" />
+      </>
+    ),
+    play: <path d="m8 5 11 7-11 7Z" />,
+    search: <path d="m21 21-4.4-4.4M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />,
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
+      </>
+    ),
+    shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10ZM9 12l2 2 4-4" />,
+    sun: (
+      <>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+      </>
+    ),
+    users: (
+      <>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
+function PlatformIcon({ platform }: { platform: Lead["platform"] }) {
+  const pLower = (platform || "web").toLowerCase();
+  const letter = platform ? platform[0] : "W";
+  return <span className={`platform-icon platform-${pLower}`}>{letter}</span>;
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`mini-toggle ${checked ? "is-on" : ""}`}
+      onClick={onChange}
+    >
+      <span />
+    </button>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  detail,
+  tone = "blue",
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "blue" | "cyan" | "green" | "violet";
+}) {
+  return (
+    <article className="stat-card">
+      <div className={`stat-icon tone-${tone}`}>
+        <Icon name={icon} size={19} />
+      </div>
+      <div className="stat-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{detail}</small>
+      </div>
+    </article>
+  );
+}
+
+function Sidebar({
+  collapsed,
+  onCollapse,
+  role,
+  onRoleChange,
+  activeItem,
+  onNavigate,
+  totalLeads,
+}: {
+  collapsed: boolean;
+  onCollapse: () => void;
+  role: Role;
+  onRoleChange: (role: Role) => void;
+  activeItem: string;
+  onNavigate: (item: string) => void;
+  totalLeads: number;
+}) {
+  const salesItems = [
+    ["Khách hàng", "lead"],
+    ["Cần chăm sóc", "calendar"],
+    ["Đã đặt lịch", "check"],
+  ] as const;
+  const adminItems = [
+    ["Tổng quan", "chart"],
+    ["Trình thu thập", "bot"],
+    ["Từ khóa & Nguồn", "search"],
+    ["Phân phối khách", "briefcase"],
+    ["Nhân sự & Phân quyền", "users"],
+    ["API & Máy chủ trung gian", "key"],
+  ] as const;
+  const items = role === "sales" ? salesItems : adminItems;
+
+  return (
+    <aside className={`sidebar ${collapsed ? "is-collapsed" : ""}`}>
+      <div className="brand-row">
+        <div className="brand-mark">
+          <span />
+          <span />
+          <span />
+        </div>
+        {!collapsed && (
+          <div className="brand-name">
+            <strong>Denta</strong>
+            <span>Lead AI</span>
+          </div>
+        )}
+        <button
+          type="button"
+          className="collapse-btn"
+          onClick={onCollapse}
+          aria-label="Thu gọn sidebar"
+        >
+          <Icon name={collapsed ? "menu" : "chevron"} size={17} />
+        </button>
+      </div>
+
+      {!collapsed && <p className="nav-label">Không gian làm việc</p>}
+      <nav className="sidebar-nav" aria-label="Điều hướng chính">
+        {items.map(([label, icon]) => (
+          <button
+            type="button"
+            key={label}
+            className={activeItem === label ? "active" : ""}
+            onClick={() => onNavigate(label)}
+            title={collapsed ? label : undefined}
+          >
+            <Icon name={icon} size={18} />
+            {!collapsed && <span>{label}</span>}
+            {!collapsed && label === "Khách hàng" && <b>{totalLeads}</b>}
+          </button>
+        ))}
+      </nav>
+
+      <div className="sidebar-bottom">
+        {!collapsed && <p className="nav-label">Chế độ truy cập</p>}
+        <div className={`role-switch ${collapsed ? "vertical" : ""}`}>
+          <button
+            type="button"
+            className={role === "sales" ? "active" : ""}
+            onClick={() => onRoleChange("sales")}
+            title="Nhân viên kinh doanh"
+          >
+            <Icon name="lead" size={15} />
+            {!collapsed && "Kinh doanh"}
+          </button>
+          <button
+            type="button"
+            className={role === "admin" ? "active" : ""}
+            onClick={() => onRoleChange("admin")}
+            title="Quản trị viên"
+          >
+            <Icon name="shield" size={15} />
+            {!collapsed && "Quản trị"}
+          </button>
+        </div>
+        {!collapsed && (
+          <div className="plan-card">
+            <div>
+              <span>Khách hàng thu thập</span>
+              <strong>{totalLeads} / 1,000</strong>
+            </div>
+            <div className="plan-progress">
+              <span style={{ width: `${Math.min(100, Math.round((totalLeads / 1000) * 100))}%` }} />
+            </div>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function Topbar({
+  dark,
+  onThemeChange,
+  isScanning,
+  onTriggerScan,
+  scanStatus,
+}: {
+  dark: boolean;
+  onThemeChange: () => void;
+  isScanning: boolean;
+  onTriggerScan: () => void;
+  scanStatus: string;
+}) {
+  return (
+    <header className="topbar">
+      <div className="global-search">
+        <Icon name="search" size={17} />
+        <input
+          aria-label="Tìm kiếm toàn hệ thống"
+          placeholder="Tìm lead, nhu cầu, phòng khám, số điện thoại..."
+        />
+        <kbd>⌘ K</kbd>
+      </div>
+      <div className="topbar-actions">
+        <button
+          type="button"
+          className={`scraper-status ${isScanning ? "active" : "paused"}`}
+          onClick={onTriggerScan}
+          title={scanStatus}
+        >
+          <span className={isScanning ? "spin" : ""} />
+          {isScanning ? "Đang quét đa nguồn..." : "⚡ Quét Lead Mới"}
+          <Icon name="chevron" size={13} />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onThemeChange}
+          aria-label="Đổi giao diện sáng tối"
+        >
+          <Icon name={dark ? "sun" : "moon"} size={18} />
+        </button>
+        <button type="button" className="icon-button notification" aria-label="Thông báo">
+          <Icon name="bell" size={18} />
+          <span />
+        </button>
+        <div className="profile">
+          <div className="avatar">QL</div>
+          <div>
+            <strong>Nha Khoa Admin</strong>
+            <span>Hệ Thống Lead Radar</span>
+          </div>
+          <Icon name="chevron" size={13} />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function LeadDrawer({
+  lead,
+  onClose,
+  onStatusChange,
+  onNoteChange,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onStatusChange: (status: LeadStatus) => void;
+  onNoteChange: (note: string) => void;
+}) {
+  const [noteText, setNoteText] = useState(lead.note || "");
+
+  return (
+    <>
+      <button
+        type="button"
+        className="drawer-backdrop"
+        onClick={onClose}
+        aria-label="Đóng chi tiết lead"
+      />
+      <aside className="lead-drawer" aria-label={`Chi tiết ${lead.name}`}>
+        <div className="drawer-header">
+          <div>
+            <span className="drawer-kicker">Khách hàng #{String(lead.id).slice(-6)}</span>
+            <h2>Thông tin chi tiết</h2>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng">
+            <Icon name="close" size={19} />
+          </button>
+        </div>
+
+        <div className="lead-profile">
+          <div className="lead-avatar">
+            {lead.name
+              .split(" ")
+              .slice(-2)
+              .map((word) => word[0])
+              .join("")}
+          </div>
+          <div>
+            <h3>{lead.name}</h3>
+            <span>{lead.handle}</span>
+          </div>
+          <PlatformIcon platform={lead.platform} />
+        </div>
+
+        <div className="intent-score">
+          <div>
+            <span>Điểm nhu cầu từ NLP</span>
+            <strong>{lead.score}/100</strong>
+          </div>
+          <div className="score-track">
+            <span style={{ width: `${lead.score}%` }} />
+          </div>
+          <small>
+            {lead.score >= 70
+              ? "🔥 Khách hàng tiềm năng cao (HOT) · Nên liên hệ tư vấn ngay"
+              : "⚡ Khách hàng đang tìm hiểu và so sánh dịch vụ"}
+          </small>
+        </div>
+
+        <div className="drawer-section">
+          <h4>Thông tin liên hệ & Phân loại</h4>
+          <div className="detail-grid">
+            <div>
+              <span>Số điện thoại</span>
+              <strong>{lead.phone}</strong>
+            </div>
+            <div>
+              <span>Khu vực</span>
+              <strong>{lead.location}</strong>
+            </div>
+            <div>
+              <span>Nhu cầu được phân tích</span>
+              <strong>{lead.need}</strong>
+            </div>
+            <div>
+              <span>Nhân viên phụ trách</span>
+              <strong>{lead.agent}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="drawer-section">
+          <div className="section-heading">
+            <h4>Bài đăng gốc trên mạng xã hội</h4>
+            {lead.url && (
+              <button
+                type="button"
+                onClick={() => window.open(lead.url, "_blank")}
+                style={{
+                  background: "var(--blue)",
+                  color: "#fff",
+                  border: "none",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                Mở bài đăng <Icon name="external" size={13} />
+              </button>
+            )}
+          </div>
+          <blockquote>{lead.post}</blockquote>
+          <span className="post-time">{lead.time} · Nguồn: {lead.platform}</span>
+        </div>
+
+        <div className="drawer-section">
+          <h4>Ghi chú chăm sóc khách hàng</h4>
+          <textarea
+            aria-label="Ghi chú clinic"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            onBlur={() => onNoteChange(noteText)}
+            placeholder="Nhập ghi chú tư vấn, tình trạng răng, lịch hẹn..."
+          />
+        </div>
+
+        <div className="drawer-footer">
+          <label htmlFor="lead-status">Cập nhật nhanh trạng thái</label>
+          <div>
+            <select
+              id="lead-status"
+              value={lead.status}
+              onChange={(event) => onStatusChange(event.target.value as LeadStatus)}
+            >
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {statusLabels[status]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                onNoteChange(noteText);
+                onClose();
+              }}
+            >
+              Lưu thay đổi
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function SalesDashboard({
+  section,
+  leadRecords,
+  onOpenLead,
+  onStatusChange,
+  isScanning,
+  onTriggerScan,
+}: {
+  section: string;
+  leadRecords: Lead[];
+  onOpenLead: (lead: Lead) => void;
+  onStatusChange: (leadId: number | string, status: LeadStatus) => void;
+  isScanning: boolean;
+  onTriggerScan: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sourceFilter, setSourceFilter] = useState("All");
+  const [selected, setSelected] = useState<(number | string)[]>([]);
+
+  const filteredLeads = useMemo(() => {
+    const normalizedSearch = search.toLowerCase();
+    return leadRecords.filter((lead) => {
+      const matchesSearch = `${lead.name} ${lead.phone} ${lead.need} ${lead.location} ${lead.post}`
+        .toLowerCase()
+        .includes(normalizedSearch);
+      const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
+      const matchesSource = sourceFilter === "All" || lead.platform === sourceFilter;
+      const matchesSection =
+        section === "Cần chăm sóc"
+          ? lead.status === "Contacted"
+          : section === "Đã đặt lịch"
+            ? lead.status === "Booking"
+            : true;
+      return matchesSearch && matchesStatus && matchesSource && matchesSection;
+    });
+  }, [search, statusFilter, sourceFilter, section, leadRecords]);
+
+  const toggleAll = () => {
+    setSelected(
+      selected.length === filteredLeads.length ? [] : filteredLeads.map((lead) => lead.id),
+    );
+  };
+
+  const sourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      Facebook: 0,
+      Voz: 0,
+      Web: 0,
+      TikTok: 0,
+      Threads: 0,
+    };
+    for (const lead of leadRecords) {
+      counts[lead.platform] = (counts[lead.platform] || 0) + 1;
+    }
+    return counts;
+  }, [leadRecords]);
+
+  const exportLeads = () => {
+    const headers = [
+      "Mã Lead",
+      "Khách hàng",
+      "Nền tảng",
+      "Số điện thoại",
+      "Tài khoản",
+      "Nhu cầu",
+      "Khu vực",
+      "Trạng thái",
+      "Nhân viên phụ trách",
+      "Điểm tiềm năng",
+      "Link bài viết",
+      "Nội dung",
+      "Ghi chú",
+    ];
+    const escapeCell = (value: string | number | undefined) =>
+      `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = filteredLeads.map((lead) =>
+      [
+        lead.id,
+        lead.name,
+        lead.platform,
+        lead.phone,
+        lead.handle,
+        lead.need,
+        lead.location,
+        statusLabels[lead.status] || lead.status,
+        lead.agent,
+        lead.score,
+        lead.url,
+        lead.post,
+        lead.note,
+      ]
+        .map(escapeCell)
+        .join(","),
+    );
+    const csv = `\uFEFF${headers.map(escapeCell).join(",")}\n${rows.join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `leads-nha-khoa-${section.toLowerCase().replaceAll(" ", "-")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="breadcrumb">Khu vực kinh doanh / {section}</span>
+          <h1>
+            {section === "Cần chăm sóc"
+              ? "Khách hàng cần chăm sóc"
+              : section === "Đã đặt lịch"
+                ? "Khách hàng đã đặt lịch"
+                : "Danh sách khách hàng tiềm năng"}
+          </h1>
+          <p>
+            {section === "Cần chăm sóc"
+              ? "Những khách hàng có nhu cầu khám răng đang cần được liên hệ tư vấn tiếp."
+              : section === "Đã đặt lịch"
+                ? "Theo dõi các khách hàng đã xác nhận lịch hẹn khám với phòng khám."
+                : "Toàn bộ khách hàng có nhu cầu nha khoa được hệ thống AI tự động phát hiện."}
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onTriggerScan}
+            disabled={isScanning}
+          >
+            <Icon name="bot" size={16} /> {isScanning ? "Đang quét..." : "Quét Leads Mới"}
+          </button>
+          <button type="button" className="primary-button export-button" onClick={exportLeads}>
+            <Icon name="database" size={16} /> Xuất Excel CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="stats-grid customer-stats">
+        <article className="stat-card source-stat-card">
+          <div className="stat-icon tone-blue">
+            <Icon name="database" size={19} />
+          </div>
+          <div className="source-stat-content">
+            <span>Khách hàng theo nguồn</span>
+            <div>
+              <b>
+                <i className="source-dot facebook" />
+                Facebook <strong>{sourceCounts.Facebook || 0}</strong>
+              </b>
+              <b>
+                <i className="source-dot voz" />
+                Voz <strong>{sourceCounts.Voz || 0}</strong>
+              </b>
+              <b>
+                <i className="source-dot web" />
+                Diễn đàn/Web <strong>{sourceCounts.Web || 0}</strong>
+              </b>
+            </div>
+          </div>
+        </article>
+        <StatCard
+          icon="calendar"
+          label="Đã đặt lịch"
+          value={String(leadRecords.filter((lead) => lead.status === "Booking").length)}
+          detail="Khách đã chốt ngày đến khám"
+          tone="violet"
+        />
+        <StatCard
+          icon="activity"
+          label="Cần chăm sóc"
+          value={String(leadRecords.filter((lead) => lead.status === "Contacted").length)}
+          detail="Đang trong quá trình trao đổi"
+          tone="cyan"
+        />
+        <StatCard
+          icon="lead"
+          label="Khách hàng mới"
+          value={String(leadRecords.filter((lead) => lead.status === "New").length)}
+          detail="Chưa bắt đầu chăm sóc"
+          tone="green"
+        />
+      </div>
+
+      <section className="data-panel">
+        <div className="table-toolbar">
+          <div className="table-title">
+            <h2>
+              {section === "Cần chăm sóc"
+                ? "Đang cần chăm sóc"
+                : section === "Đã đặt lịch"
+                  ? "Lịch hẹn đã xác nhận"
+                  : "Khách hàng đã thu thập"}
+            </h2>
+            <span>{filteredLeads.length} kết quả</span>
+          </div>
+          <div className="filter-row">
+            <label className="table-search">
+              <Icon name="search" size={15} />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm tên, nhu cầu, khu vực..."
+              />
+            </label>
+            <label className="select-wrap">
+              <Icon name="filter" size={14} />
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="All">Tất cả trạng thái</option>
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="select-wrap">
+              <select
+                value={sourceFilter}
+                onChange={(event) => setSourceFilter(event.target.value)}
+              >
+                <option value="All">Tất cả nguồn</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Voz">Voz Forum</option>
+                <option value="Web">Diễn đàn / Web</option>
+                <option value="TikTok">TikTok</option>
+                <option value="Threads">Threads</option>
+              </select>
+            </label>
+            <button type="button" className="icon-button" onClick={() => setSearch("")} title="Xóa bộ lọc">
+              <Icon name="columns" size={17} />
+            </button>
+          </div>
+        </div>
+
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    aria-label="Chọn tất cả"
+                    checked={filteredLeads.length > 0 && selected.length === filteredLeads.length}
+                    onChange={toggleAll}
+                  />
+                </th>
+                <th>Khách hàng</th>
+                <th>Nguồn</th>
+                <th>Liên hệ</th>
+                <th>Nhu cầu</th>
+                <th>Khu vực</th>
+                <th>Trạng thái</th>
+                <th>Điểm</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLeads.length === 0 ? (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "40px", color: "var(--text-soft)" }}>
+                    Không có khách hàng nào phù hợp bộ lọc.
+                  </td>
+                </tr>
+              ) : (
+                filteredLeads.map((lead) => (
+                  <tr key={lead.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Chọn ${lead.name}`}
+                        checked={selected.includes(lead.id)}
+                        onChange={() =>
+                          setSelected((current) =>
+                            current.includes(lead.id)
+                              ? current.filter((id) => id !== lead.id)
+                              : [...current, lead.id],
+                          )
+                        }
+                      />
+                    </td>
+                    <td>
+                      <button type="button" className="lead-name" onClick={() => onOpenLead(lead)}>
+                        <span>
+                          {lead.name
+                            .split(" ")
+                            .slice(-2)
+                            .map((word) => word[0])
+                            .join("")}
+                        </span>
+                        <div>
+                          <strong>{lead.name}</strong>
+                          <small>{lead.time}</small>
+                        </div>
+                      </button>
+                    </td>
+                    <td>
+                      <div className="platform-cell">
+                        <PlatformIcon platform={lead.platform} />
+                        {lead.platform}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="contact-cell">
+                        <strong>{lead.phone}</strong>
+                        <span>{lead.handle}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="need-tag">{lead.need}</span>
+                    </td>
+                    <td>{lead.location}</td>
+                    <td>
+                      <select
+                        className={`quick-status status-${lead.status.toLowerCase()}`}
+                        aria-label={`Đổi trạng thái của ${lead.name}`}
+                        value={lead.status}
+                        onChange={(event) =>
+                          onStatusChange(lead.id, event.target.value as LeadStatus)
+                        }
+                      >
+                        {statusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {statusLabels[status]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <b style={{ color: lead.score >= 70 ? "#ef4444" : "#f59e0b" }}>
+                        {lead.score}đ
+                      </b>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="more-button"
+                        onClick={() => onOpenLead(lead)}
+                        aria-label="Xem chi tiết"
+                      >
+                        <Icon name="more" size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="pagination">
+          <span>Đang hiển thị {filteredLeads.length} khách hàng</span>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function AdminDashboard({
+  section,
+  onTriggerScan,
+  isScanning,
+  totalLeads,
+}: {
+  section: string;
+  onTriggerScan: (query?: string) => void;
+  isScanning: boolean;
+  totalLeads: number;
+}) {
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="breadcrumb">Trung tâm quản trị / {section}</span>
+          <h1>{section}</h1>
+          <p>Giám sát bộ cào dữ liệu, từ khóa tìm kiếm và cấu hình hệ thống.</p>
+        </div>
+        <div className="heading-actions">
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => onTriggerScan()}
+            disabled={isScanning}
+          >
+            <Icon name="bot" size={16} /> {isScanning ? "Đang quét..." : "Quét toàn bộ"}
+          </button>
+        </div>
+      </div>
+      {section === "Tổng quan" && <AdminOverview totalLeads={totalLeads} />}
+      {section === "Trình thu thập" && (
+        <CrawlerPanel onTriggerScan={onTriggerScan} isScanning={isScanning} />
+      )}
+      {section === "Từ khóa & Nguồn" && <KeywordPanel onTriggerScan={onTriggerScan} />}
+      {section === "Phân phối khách" && <DistributionPanel />}
+      {section === "Nhân sự & Phân quyền" && <TeamPanel />}
+      {section === "API & Máy chủ trung gian" && <ApiPanel />}
+    </>
+  );
+}
+
+function AdminOverview({ totalLeads }: { totalLeads: number }) {
+  return (
+    <>
+      <div className="stats-grid">
+        <StatCard
+          icon="database"
+          label="Tổng leads tích lũy"
+          value={String(totalLeads)}
+          detail="Tự động lọc NLP"
+          tone="blue"
+        />
+        <StatCard
+          icon="bot"
+          label="Thời gian hoạt động"
+          value="99.8%"
+          detail="Hệ thống sẵn sàng"
+          tone="green"
+        />
+        <StatCard
+          icon="activity"
+          label="Độ chính xác NLP"
+          value="94.2%"
+          detail="Loại bỏ 100% spam phòng khám"
+          tone="cyan"
+        />
+        <StatCard
+          icon="shield"
+          label="Trạng thái Proxy / SSL"
+          value="Ổn định"
+          detail="Tương thích macOS & Web"
+          tone="violet"
+        />
+      </div>
+      <div className="admin-grid">
+        <CrawlerPanel compact />
+        <section className="admin-card">
+          <div className="card-heading">
+            <div>
+              <h2>Sản lượng thu thập 7 ngày qua</h2>
+              <p>Khách hàng ghi nhận theo ngày</p>
+            </div>
+          </div>
+          <div className="chart-wrap">
+            <div className="chart-y">
+              <span>50</span>
+              <span>40</span>
+              <span>30</span>
+              <span>20</span>
+              <span>10</span>
+              <span>0</span>
+            </div>
+            <div className="bar-chart">
+              {[45, 62, 58, 80, 72, 95, 84].map((height, index) => (
+                <div key={index}>
+                  <span style={{ height: `${height}%` }} />
+                  <small>{["T2", "T3", "T4", "T5", "T6", "T7", "CN"][index]}</small>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function CrawlerPanel({
+  compact = false,
+  onTriggerScan,
+  isScanning = false,
+}: {
+  compact?: boolean;
+  onTriggerScan?: (query?: string) => void;
+  isScanning?: boolean;
+}) {
+  const [customQuery, setCustomQuery] = useState("");
+  const [states, setStates] = useState([true, true, true, true]);
+  const crawlers = [
+    {
+      name: "Facebook Groups & Review Nha Khoa",
+      source: "Facebook",
+      rate: "Quét dork intent",
+      last: "Hoạt động",
+    },
+    {
+      name: "Voz Forum (F17 & F33 Thảo Luận Răng)",
+      source: "Voz",
+      rate: "Diễn đàn chuyên sâu",
+      last: "Hoạt động",
+    },
+    {
+      name: "Webtretho & Hỏi Đáp Bác Sĩ",
+      source: "Web",
+      rate: "Kinh nghiệm thực tế",
+      last: "Hoạt động",
+    },
+    {
+      name: "Reddit (r/VietNam & Nha Khoa)",
+      source: "Web",
+      rate: "Cộng đồng hỏi đáp",
+      last: "Hoạt động",
+    },
+  ];
+
+  return (
+    <section className={`admin-card crawler-panel ${compact ? "compact" : "full-span"}`}>
+      <div className="card-heading">
+        <div>
+          <h2>Trạng thái trình thu thập đa nguồn</h2>
+          <p>Thu thập dữ liệu bệnh nhân tiềm năng theo thời gian thực</p>
+        </div>
+        <span className="health-pill">
+          <span /> {isScanning ? "Đang cào dữ liệu..." : "Hệ thống sẵn sàng"}
+        </span>
+      </div>
+
+      {!compact && onTriggerScan && (
+        <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
+          <input
+            style={{
+              flex: 1,
+              background: "var(--surface-soft)",
+              border: "1px solid var(--border)",
+              borderRadius: "8px",
+              padding: "10px 14px",
+              color: "var(--text)",
+            }}
+            placeholder="Nhập từ khóa quét tùy chọn (ví dụ: 'nhổ răng khôn Hà Nội', 'niềng răng trả góp')..."
+            value={customQuery}
+            onChange={(e) => setCustomQuery(e.target.value)}
+          />
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => onTriggerScan(customQuery)}
+            disabled={isScanning}
+          >
+            <Icon name="bot" size={16} /> {isScanning ? "Đang quét..." : "Bắt đầu quét ngay"}
+          </button>
+        </div>
+      )}
+
+      <div className="crawler-list">
+        {crawlers.map((crawler, index) => (
+          <div className="crawler-row" key={crawler.name}>
+            <PlatformIcon platform={crawler.source as Lead["platform"]} />
+            <div className="crawler-name">
+              <strong>{crawler.name}</strong>
+              <span>Trạng thái: {crawler.last}</span>
+            </div>
+            <div className="crawler-rate">
+              <strong>{crawler.rate}</strong>
+              <span>Kênh thu thập</span>
+            </div>
+            <Toggle
+              checked={states[index]}
+              label={`Bật tắt ${crawler.name}`}
+              onChange={() =>
+                setStates((current) =>
+                  current.map((value, item) => (item === index ? !value : value)),
+                )
+              }
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KeywordPanel({ onTriggerScan }: { onTriggerScan?: (query: string) => void }) {
+  const [sources, setSources] = useState({ Facebook: true, Voz: true, Web: true });
+  const [customKw, setCustomKw] = useState("");
+
+  const presetKeywords = [
+    "nhổ răng khôn cho em hỏi",
+    "niềng răng review kinh nghiệm",
+    "đau răng sâu tủy khám ở đâu",
+    "trồng răng implant giá bao nhiêu",
+    "nha khoa uy tín Hà Nội",
+    "nha khoa uy tín Sài Gòn",
+  ];
+
+  return (
+    <div className="settings-grid">
+      <section className="admin-card">
+        <div className="card-heading">
+          <div>
+            <h2>Từ khóa mục tiêu</h2>
+            <p>Bấm vào từ khóa để kích hoạt quét nhanh</p>
+          </div>
+        </div>
+        <div className="keyword-list">
+          {presetKeywords.map((keyword) => (
+            <span
+              key={keyword}
+              style={{ cursor: "pointer" }}
+              onClick={() => onTriggerScan && onTriggerScan(keyword)}
+              title="Nhấn để quét theo từ khóa này"
+            >
+              {keyword}
+              <b style={{ color: "var(--blue)" }}>⚡ Quét</b>
+            </span>
+          ))}
+        </div>
+        <div className="keyword-input">
+          <input
+            placeholder="Nhập từ khóa mới..."
+            value={customKw}
+            onChange={(e) => setCustomKw(e.target.value)}
+          />
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => {
+              if (customKw && onTriggerScan) {
+                onTriggerScan(customKw);
+                setCustomKw("");
+              }
+            }}
+          >
+            Quét từ khóa
+          </button>
+        </div>
+      </section>
+      <section className="admin-card">
+        <div className="card-heading">
+          <div>
+            <h2>Nguồn thu thập dữ liệu</h2>
+            <p>Các kênh được kích hoạt quét</p>
+          </div>
+        </div>
+        <div className="source-list">
+          {(Object.keys(sources) as (keyof typeof sources)[]).map((source) => (
+            <div key={source}>
+              <PlatformIcon platform={source as Lead["platform"]} />
+              <div>
+                <strong>{source}</strong>
+                <span>Kênh thảo luận công khai</span>
+              </div>
+              <Toggle
+                checked={sources[source]}
+                label={`Bật tắt ${source}`}
+                onChange={() => setSources({ ...sources, [source]: !sources[source] })}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DistributionPanel() {
+  return (
+    <section className="admin-card full-span">
+      <div className="card-heading">
+        <div>
+          <h2>Quy tắc phân phối khách hàng</h2>
+          <p>Tự động phân công theo khu vực và dịch vụ quan tâm</p>
+        </div>
+      </div>
+      <div className="rule-list">
+        {[
+          ["Nhu cầu cao · Implant", "Điểm nhu cầu ≥ 75 và từ khóa có chứa 'implant'", "Huy Phạm", "42%"],
+          ["Khu vực Hà Nội", "Khách hàng tại Hà Nội hoặc miền Bắc", "Linh Nguyễn", "31%"],
+          ["Nha khoa thẩm mỹ & Niềng", "Nhu cầu là Niềng răng hoặc Dán sứ", "Mai Trần", "27%"],
+        ].map(([name, rule, agent, share], index) => (
+          <div className="rule-row" key={name}>
+            <span className="rule-index">{index + 1}</span>
+            <div>
+              <strong>{name}</strong>
+              <span>{rule}</span>
+            </div>
+            <div className="rule-agent">
+              <span>
+                {agent
+                  .split(" ")
+                  .map((word) => word[0])
+                  .join("")
+                  .slice(-2)}
+              </span>
+              {agent}
+            </div>
+            <b>{share} lưu lượng</b>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TeamPanel() {
+  return (
+    <section className="admin-card full-span">
+      <div className="card-heading">
+        <div>
+          <h2>Quản lý đội ngũ tư vấn</h2>
+          <p>Nhân viên phụ trách chăm sóc khách hàng</p>
+        </div>
+      </div>
+      <div className="team-table">
+        {[
+          ["Admin Hệ Thống", "AD", "Quản trị viên", "Toàn quyền truy cập", "Đang trực tuyến"],
+          ["Linh Nguyễn", "LN", "Tư vấn viên", "Chăm sóc niềng răng & nhổ răng khôn", "5 phút trước"],
+          ["Huy Phạm", "HP", "Tư vấn viên", "Chuyên khoa Implant & phục hình", "18 phút trước"],
+          ["Mai Trần", "MT", "Trưởng nhóm", "Giám sát & phân phối lead", "1 giờ trước"],
+        ].map(([name, initials, role, access, active]) => (
+          <div key={name}>
+            <span className="team-avatar">{initials}</span>
+            <div>
+              <strong>{name}</strong>
+              <span>{active}</span>
+            </div>
+            <span className={`role-badge ${role === "Quản trị viên" ? "admin" : ""}`}>{role}</span>
+            <span>{access}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ApiPanel() {
+  return (
+    <div className="settings-grid">
+      <section className="admin-card">
+        <div className="card-heading">
+          <div>
+            <h2>Backend API Endpoints</h2>
+            <p>Tích hợp trực tiếp với Python Scraper Engine</p>
+          </div>
+          <span className="health-pill">
+            <span /> Đã kết nối
+          </span>
+        </div>
+        <div className="api-key" style={{ flexDirection: "column", alignItems: "flex-start", gap: "8px" }}>
+          <div><code>GET  /api/leads</code> — Lấy danh sách leads</div>
+          <div><code>POST /api/scan</code> — Kích hoạt cào dữ liệu mới</div>
+          <div><code>PATCH /api/leads/:id</code> — Cập nhật trạng thái lead</div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default function App() {
+  const [role, setRole] = useState<Role>("sales");
+  const [collapsed, setCollapsed] = useState(false);
+  const [dark, setDark] = useState(() => localStorage.getItem("denta-theme") === "dark");
+  const [salesSection, setSalesSection] = useState("Khách hàng");
+  const [adminSection, setAdminSection] = useState("Tổng quan");
+  const [leadRecords, setLeadRecords] = useState<Lead[]>(initialLeads);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState("Sẵn sàng");
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    localStorage.setItem("denta-theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  const fetchLeads = async () => {
+    try {
+      const res = await fetch("/api/leads");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.leads && data.leads.length > 0) {
+          setLeadRecords(data.leads);
+        }
+        if (typeof data.is_scanning === "boolean") {
+          setIsScanning(data.is_scanning);
+        }
+        if (data.last_scan?.message) {
+          setScanStatus(data.last_scan.message);
+        }
+      }
+    } catch {
+      // Offline fallback to initialLeads
+    }
+  };
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  const triggerScan = async (query = "") => {
+    setIsScanning(true);
+    setScanStatus("Đang quét dữ liệu...");
+    try {
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, limit: 10 }),
+      });
+      if (res.ok) {
+        const interval = setInterval(async () => {
+          try {
+            const statusRes = await fetch("/api/status");
+            if (statusRes.ok) {
+              const statusData = await statusRes.json();
+              if (!statusData.is_scanning) {
+                clearInterval(interval);
+                setIsScanning(false);
+                fetchLeads();
+              }
+            }
+          } catch {
+            clearInterval(interval);
+            setIsScanning(false);
+          }
+        }, 2000);
+      } else {
+        setIsScanning(false);
+      }
+    } catch {
+      setIsScanning(false);
+    }
+  };
+
+  const handleLeadStatusChange = async (leadId: number | string, status: LeadStatus) => {
+    setLeadRecords((current) =>
+      current.map((lead) => (lead.id === leadId ? { ...lead, status } : lead)),
+    );
+    setSelectedLead((current) => (current?.id === leadId ? { ...current, status } : current));
+    try {
+      await fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    } catch {}
+  };
+
+  const handleLeadNoteChange = async (leadId: number | string, note: string) => {
+    setLeadRecords((current) =>
+      current.map((lead) => (lead.id === leadId ? { ...lead, note } : lead)),
+    );
+    try {
+      await fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+    } catch {}
+  };
+
+  return (
+    <div className={`app ${collapsed ? "sidebar-collapsed" : ""}`}>
+      <Sidebar
+        collapsed={collapsed}
+        onCollapse={() => setCollapsed(!collapsed)}
+        role={role}
+        onRoleChange={(r) => {
+          setRole(r);
+          setSelectedLead(null);
+        }}
+        activeItem={role === "sales" ? salesSection : adminSection}
+        onNavigate={role === "sales" ? setSalesSection : setAdminSection}
+        totalLeads={leadRecords.length}
+      />
+      <div className="app-main">
+        <Topbar
+          dark={dark}
+          onThemeChange={() => setDark(!dark)}
+          isScanning={isScanning}
+          onTriggerScan={() => triggerScan()}
+          scanStatus={scanStatus}
+        />
+        <main className="content">
+          {role === "sales" ? (
+            <SalesDashboard
+              section={salesSection}
+              leadRecords={leadRecords}
+              onOpenLead={setSelectedLead}
+              onStatusChange={handleLeadStatusChange}
+              isScanning={isScanning}
+              onTriggerScan={() => triggerScan()}
+            />
+          ) : (
+            <AdminDashboard
+              section={adminSection}
+              onTriggerScan={triggerScan}
+              isScanning={isScanning}
+              totalLeads={leadRecords.length}
+            />
+          )}
+        </main>
+      </div>
+      {selectedLead && (
+        <LeadDrawer
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onStatusChange={(status) => handleLeadStatusChange(selectedLead.id, status)}
+          onNoteChange={(note) => handleLeadNoteChange(selectedLead.id, note)}
+        />
+      )}
+    </div>
+  );
+}

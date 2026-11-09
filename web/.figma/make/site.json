@@ -1,0 +1,10 @@
+{
+  "description": "An interactive iOS-style toggle switch with an elastic animation and satisfying snap sound for a playful, tactile control experience.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

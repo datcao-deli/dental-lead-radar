@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Lead Scanner - Danh Sách Khách Hàng Nhu Cầu Nha Khoa</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --surface: #131b2e;
+            --surface-hover: #1b2640;
+            --border: #1f2d4d;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.2);
+            --hot: #f43f5e;
+            --hot-glow: rgba(244, 63, 94, 0.2);
+            --warm: #f59e0b;
+            --cold: #64748b;
+            --urgent: #ef4444;
+            --success: #10b981;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 32px 24px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 24px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+        .brand h1 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .brand p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--accent, var(--primary)), transparent);
+        }
+        .stat-card.hot { --accent: var(--hot); }
+        .stat-card.warm { --accent: var(--warm); }
+        .stat-card.urgent { --accent: var(--urgent); }
+        .stat-card.neutral { --accent: var(--primary); }
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .stat-val {
+            font-size: 32px;
+            font-weight: 800;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .stat-val span {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .filter-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .search-box {
+            flex: 1;
+            min-width: 280px;
+            position: relative;
+        }
+        .search-box input {
+            width: 100%;
+            background: #090d16;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px 12px 40px;
+            color: var(--text-main);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .filter-pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .pill {
+            background: #0b1120;
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+        .pill:hover, .pill.active {
+            background: var(--primary);
+            color: #0b0f19;
+            border-color: var(--primary);
+        }
+        .pill.hot-pill.active {
+            background: var(--hot);
+            border-color: var(--hot);
+            color: white;
+        }
+        .leads-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+            gap: 20px;
+        }
+        .lead-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transition: all 0.2s;
+        }
+        .lead-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        .lead-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .badge-hot {
+            background: var(--hot-glow);
+            color: #fb7185;
+            border: 1px solid rgba(244, 63, 94, 0.4);
+        }
+        .badge-warm {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .badge-cold {
+            background: rgba(100, 116, 139, 0.2);
+            color: #94a3b8;
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+        .lead-title {
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.4;
+            color: var(--text-main);
+        }
+        .lead-snippet {
+            font-size: 13.5px;
+            color: #cbd5e1;
+            line-height: 1.6;
+            background: #0a0e17;
+            padding: 12px;
+            border-radius: 10px;
+            border-left: 3px solid var(--primary);
+        }
+        .lead-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: auto;
+        }
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .tag {
+            background: #1e293b;
+            color: #38bdf8;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .lead-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border);
+            padding-top: 14px;
+            margin-top: 6px;
+        }
+        .btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            border: none;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #0f172a;
+        }
+        .btn-primary:hover {
+            background: #7dd3fc;
+        }
+        .btn-ghost {
+            background: #1e293b;
+            color: var(--text-main);
+        }
+        .btn-ghost:hover {
+            background: #334155;
+        }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--success);
+            color: #0b0f19;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            display: none;
+            z-index: 999;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <div class="brand-icon">🦷</div>
+                <div>
+                    <h1>Dental Lead Radar AI</h1>
+                    <p>Hệ thống quét & phân tích nhu cầu khám chữa răng trên mạng xã hội và diễn đàn</p>
+                </div>
+            </div>
+            <div>
+                <span class="badge badge-hot">Live Scanner</span>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card neutral">
+                <div class="stat-label">TỔNG LEADS THU THẬP</div>
+                <div class="stat-val">15 <span>bài viết</span></div>
+            </div>
+            <div class="stat-card hot">
+                <div class="stat-label">LEADS NÓNG (NHU CẦU CAO)</div>
+                <div class="stat-val">2 <span>khách tiềm năng</span></div>
+            </div>
+            <div class="stat-card warm">
+                <div class="stat-label">LEADS ĐANG TÌM HIỂU</div>
+                <div class="stat-val">10 <span>hỏi đáp / review</span></div>
+            </div>
+            <div class="stat-card urgent">
+                <div class="stat-label">TRƯỜNG HỢP CẦN XỬ LÝ GẤP</div>
+                <div class="stat-val">6 <span>đau răng / sưng tấy</span></div>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" placeholder="Tìm theo từ khóa, khu vực, triệu chứng, người đăng..." onkeyup="filterLeads()">
+            </div>
+            <div class="filter-pills">
+                <button class="pill active" onclick="setQualityFilter('ALL', this)">Tất cả (15)</button>
+                <button class="pill hot-pill" onclick="setQualityFilter('HOT', this)">🔥 Nóng (2)</button>
+                <button class="pill" onclick="setQualityFilter('WARM', this)">⚡ Ấm (10)</button>
+            </div>
+        </div>
+
+        <div class="leads-grid" id="leadsGrid"></div>
+    </div>
+
+    <div class="toast" id="toast">Đã sao chép thông tin khách hàng vào clipboard!</div>
+
+    <script>
+        const leadsData = [{"id": "585547838448", "title": "Bảng giá cấy ghép Implant chuẩn y khoa tại Dr. Care năm 2026", "snippet": "Giá trồng răng Implant chênh lệch trên thị trường là do 4 yếu tố chính: dòng trụ Implant, tình trạng xương hàm, kỹ năng của bác sĩ, và công nghệ ứng dụng. Trồng răng Implant All-on-6 giá bao nhiêu ?", "url": "https://drcareimplant.com/bang-gia-implant", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "TRỒNG_RĂNG_IMPLANT", "category_label": "Trồng Răng / Cấy Ghép Implant", "urgency": "Trung bình", "intent_score": 78, "lead_quality": "HOT", "location": "Toàn quốc", "matched_keywords": ["giá bao nhiêu", "trồng răng", "cấy ghép implant", "implant"], "created_at": "2026-11-09 15:29:11", "matched_keywords_str": "giá bao nhiêu, trồng răng, cấy ghép implant, implant"}, {"id": "594a3632afc7", "title": "Nhổ răng khôn ở đâu tốt và uy tín tại TP.HCM?", "snippet": "Răng khôn (răng số 8) mọc lệch, mọc ngầm sưng, đau là \"nỗi ám ảnh\" của rất nhiều người. BookingCare chia sẻ thông tin nha khoa nhổ răng khôn tốt, uy tín tại TP.HCM để bạn đọc tham khảo khi cần thiết.", "url": "https://bookingcare.vn/cam-nang/nho-rang-khon-o-dau-tot-va-uy-tin-tai-tphcm-p2549.html", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NHỔ_RĂNG_KHÔN", "category_label": "Nhổ Răng Khôn (Số 8)", "urgency": "Cao", "intent_score": 78, "lead_quality": "HOT", "location": "TP. Hồ Chí Minh", "matched_keywords": ["ở đâu tốt", "răng khôn", "răng số 8", "nhổ răng khôn"], "created_at": "2026-11-09 15:29:17", "matched_keywords_str": "ở đâu tốt, răng khôn, răng số 8, nhổ răng khôn"}, {"id": "851fdd272c7e", "title": "Niềng răng là gì? Đeo niềng răng để làm gì, có tác dụng ra sao?", "snippet": "Em muốn hỏi niềng răng là gì và bản chất của việc đeo niềng là để làm gì ạ? Niềng răng mắc cài sứ thẩm mỹ là lựa chọn phù hợp với những em vừa muốn chỉnh răng vừa muốn đảm bảo thẩm mỹ trong suốt quá trình niềng.", "url": "https://benhvienthammygangwhoo.com/hoi-dap-tham-my/nieng-rang-la-gi/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NIỀNG_RĂNG_CHỈNH_NHA", "category_label": "Niềng Răng / Chỉnh Nha", "urgency": "Trung bình", "intent_score": 63, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["em", "niềng răng", "mắc cài"], "created_at": "2026-11-09 15:29:09", "matched_keywords_str": "em, niềng răng, mắc cài"}, {"id": "6b7bda9d70cb", "title": "Bảng Giá Trồng Răng Implant 2026 My Auris... - Nha Khoa My Auris", "snippet": "8. Giá trồng răng Implant All-on-6 bao nhiêu ? 9. Trồng răng Implant tại TP.HCM ở đâu uy tín, chất lượng? 9.1. Nha khoa chất lượng – Chuyên môn sâu, vô trùng tuyệt đối.", "url": "https://myauris.vn/gia-cay-rang-implant-bang-gia-chi-tiet-tai-nha-khoa", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "TRỒNG_RĂNG_IMPLANT", "category_label": "Trồng Răng / Cấy Ghép Implant", "urgency": "Trung bình", "intent_score": 63, "lead_quality": "WARM", "location": "TP. Hồ Chí Minh", "matched_keywords": ["ở đâu uy tín", "trồng răng", "implant"], "created_at": "2026-11-09 15:29:11", "matched_keywords_str": "ở đâu uy tín, trồng răng, implant"}, {"id": "ec5abf3f47ad", "title": "[Funland] - Niềng răng cho trẻ cần lưu ý, tránh tiền mất tật mang.", "snippet": "Nói tóm lại niềng răng sẽ tốn kém nhưng không phải mất tiền và thời gian là xong. Cần lưu ý những mục em chia sẻ theo kinh nghiệm của bản thân và có tính logic.", "url": "https://www.otofun.net.vn/threads/nieng-rang-cho-tre-can-luu-y-tranh-tien-mat-tat-mang-khong-nghe-tu-van-hoan-toan-tu-nha-sy.1676573/page-7", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NIỀNG_RĂNG_CHỈNH_NHA", "category_label": "Niềng Răng / Chỉnh Nha", "urgency": "Trung bình", "intent_score": 51, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["em", "kinh nghiệm", "niềng răng"], "created_at": "2026-11-09 15:29:22", "matched_keywords_str": "em, kinh nghiệm, niềng răng"}, {"id": "a0846d4efbe4", "title": "Nhổ răng khôn ở đâu tốt và uy tín tại Sài Gòn", "snippet": "Nhổ răng khôn với công nghệ hiện đại và quy trình an toàn*. Bước 4: Nhổ răng : Bác sĩ áp dụng các kỹ thuật nhổ răng tiên tiến, hiện đại, giúp thao tác nhanh chóng, chính xác, hạn chế tổn thương và rút ngắn thời gian thực hiện.", "url": "https://benhvienranghammatsg.vn/nho-rang-khon-8-o-dau-tot-va-uy-tin/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NHỔ_RĂNG_KHÔN", "category_label": "Nhổ Răng Khôn (Số 8)", "urgency": "Cao", "intent_score": 48, "lead_quality": "WARM", "location": "TP. Hồ Chí Minh", "matched_keywords": ["ở đâu tốt", "răng khôn", "nhổ răng khôn"], "created_at": "2026-11-09 15:29:17", "matched_keywords_str": "ở đâu tốt, răng khôn, nhổ răng khôn"}, {"id": "6e3163df5981", "title": "Niềng răng móm và những thông tin cần nắm rõ", "snippet": "Những câu hỏi về niềng răng hàm móm. Niềng răng cải thiện tình trạng răng móm, khớp cắn ngược. 1. Niềng răng cho người móm có tác dụng gì?", "url": "https://nhakhoathuyanh.com/thong-tin-ve-phuong-phap-nieng-rang-mom/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NIỀNG_RĂNG_CHỈNH_NHA", "category_label": "Niềng Răng / Chỉnh Nha", "urgency": "Trung bình", "intent_score": 45, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["niềng răng", "răng móm"], "created_at": "2026-11-09 15:29:09", "matched_keywords_str": "niềng răng, răng móm"}, {"id": "b64cbbecd418", "title": "Niềng răng móm mất bao lâu? Phương pháp nào hiệu quả hơn?", "snippet": "Việc lựa chọn phương pháp niềng răng móm hiệu quả phụ thuộc vào rất nhiều yếu tố, bao gồm tình trạng răng miệng cụ thể của bạn, mức độ móm, mong muốn về thẩm mỹ và chi phí.", "url": "https://nhakhoaquoctephuhoa.vn/nieng-rang-mom-co-hieu-qua-khong-10536/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NIỀNG_RĂNG_CHỈNH_NHA", "category_label": "Niềng Răng / Chỉnh Nha", "urgency": "Trung bình", "intent_score": 45, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["niềng răng", "răng móm"], "created_at": "2026-11-09 15:29:09", "matched_keywords_str": "niềng răng, răng móm"}, {"id": "30b170e469c6", "title": "Trồng răng Implant là gì? Giá , Ưu điểm và Quy trình [T09/2026]- Nha...", "snippet": "Trồng răng implant giá từ 15.000.000 – 42.000.000 VNĐ/răng đã bao gồm trụ implant, chi phí làm răng sứ, khớp nối abutment. Mức chi phí trồng implant chênh lệch này tùy thuộc vào nhiều yếu tố khác nhau.", "url": "https://nhakhoaident.com/kien-thuc-nha-khoa/trong-rang-implant-la-gi/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "TRỒNG_RĂNG_IMPLANT", "category_label": "Trồng Răng / Cấy Ghép Implant", "urgency": "Trung bình", "intent_score": 45, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["trồng răng", "implant"], "created_at": "2026-11-09 15:29:11", "matched_keywords_str": "trồng răng, implant"}, {"id": "d50f5069e578", "title": "Bảng giá nhổ răng khôn : Cập nhật mới nhất hiện nay!", "snippet": "Sep 22, 2026 · Vậy, mức giá nhổ răng khôn hiện nay là bao nhiêu? Bài viết này sẽ tổng hợp và phân tích bảng giá nhổ răng khôn tại các …", "url": "https://nhathuoclongchau.com.vn/bai-viet/bang-gia-nho-rang-khon-cap-nhat-moi-nhat-hien-nay.html", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NHỔ_RĂNG_KHÔN", "category_label": "Nhổ Răng Khôn (Số 8)", "urgency": "Cao", "intent_score": 45, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["răng khôn", "nhổ răng khôn"], "created_at": "2026-11-09 15:29:18", "matched_keywords_str": "răng khôn, nhổ răng khôn"}, {"id": "3fe4349ccef2", "title": "Nhổ răng khôn : Quy trình và các lưu ý trước, sau xử lý", "snippet": "Nov 9, 2024 · Nhổ răng khôn là một tiểu phẫu để lấy bỏ một hoặc nhiều răng số 8 (gọi là răng khôn) mọc trong cùng hàm răng. Nha sĩ …", "url": "https://tamanhhospital.vn/nho-rang-khon/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NHỔ_RĂNG_KHÔN", "category_label": "Nhổ Răng Khôn (Số 8)", "urgency": "Cao", "intent_score": 45, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["răng khôn", "răng số 8", "nhổ răng khôn"], "created_at": "2026-11-09 15:29:18", "matched_keywords_str": "răng khôn, răng số 8, nhổ răng khôn"}, {"id": "890f928478b8", "title": "Nhổ răng khôn : Khi nào nên nhổ ? Chi phí, quy trình và lưu ý", "snippet": "6 days ago · Quy trình nhổ răng khôn diễn ra gồm 5 bước sau, bao gồm thăm khám và chụp phim -X-quang, sát khuẩn và tiêm tê cục …", "url": "https://nhakhoaident.com/dich-vu/nho-rang-khon/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NHỔ_RĂNG_KHÔN", "category_label": "Nhổ Răng Khôn (Số 8)", "urgency": "Cao", "intent_score": 45, "lead_quality": "WARM", "location": "Toàn quốc", "matched_keywords": ["răng khôn", "nhổ răng khôn"], "created_at": "2026-11-09 15:29:18", "matched_keywords_str": "răng khôn, nhổ răng khôn"}, {"id": "3d04e391a504", "title": "[Funland] - nhờ các cụ tư vấn niềng răng | Mạng xã hội OTOFUN", "snippet": "Ăn uống nhiều lúc cũng gặp nhiều khó khăn. Em thấy càng ngày nó có vẻ càng hô ra, nên em quyết định đi niềng răng . Em năm nay 30, Nam.", "url": "https://www.otofun.net.vn/threads/nho-cac-cu-tu-van-nieng-rang.1466076/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NIỀNG_RĂNG_CHỈNH_NHA", "category_label": "Niềng Răng / Chỉnh Nha", "urgency": "Trung bình", "intent_score": 33, "lead_quality": "COLD", "location": "Toàn quốc", "matched_keywords": ["em", "niềng răng"], "created_at": "2026-11-09 15:29:22", "matched_keywords_str": "em, niềng răng"}, {"id": "8e72fc8355a7", "title": "[Funland] - Niềng răng ở Nha khoa Lạc Việt. | Mạng xã hội OTOFUN", "snippet": "Gấu em được giới thiệu là niềng răng ở đây rất tốt , có phương pháp niềng tự động không phải điều chỉnh vít hàng tháng gây đau đớn.", "url": "https://www.otofun.net.vn/threads/nieng-rang-o-nha-khoa-lac-viet.1867056/", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NIỀNG_RĂNG_CHỈNH_NHA", "category_label": "Niềng Răng / Chỉnh Nha", "urgency": "Trung bình", "intent_score": 33, "lead_quality": "COLD", "location": "Toàn quốc", "matched_keywords": ["em", "niềng răng"], "created_at": "2026-11-09 15:29:22", "matched_keywords_str": "em, niềng răng"}, {"id": "3e3cb7a966bb", "title": "Top 5 địa chỉ nhổ răng khôn uy tín TPHCM đáng tin cậy hiện nay", "snippet": "Nha Khoa Trồng răng Sài Gòn . Không chỉ nổi tiếng với thế mạnh trồng răng Implant, Nha Khoa Trồng răng Sài Gòn còn là địa chỉ nhổ răng khôn uy tín tại TPHCM.", "url": "https://baotuyenquang.com.vn/top-5-dia-chi-nho-rang-khon-uy-tin-tphcm-dang-tin-cay-hien-nay-183344.html", "platform": "Web", "author": "Ẩn danh", "published_date": "", "category": "NHỔ_RĂNG_KHÔN", "category_label": "Nhổ Răng Khôn (Số 8)", "urgency": "Cao", "intent_score": 30, "lead_quality": "COLD", "location": "TP. Hồ Chí Minh", "matched_keywords": ["răng khôn", "nhổ răng khôn", "trồng răng", "implant"], "created_at": "2026-11-09 15:29:17", "matched_keywords_str": "răng khôn, nhổ răng khôn, trồng răng, implant"}];
+        let activeQuality = 'ALL';
+
+        function renderLeads(leads) {
+            const grid = document.getElementById('leadsGrid');
+            if (!leads.length) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 48px; color: var(--text-muted);">Không tìm thấy bài viết nào phù hợp bộ lọc.</div>';
+                return;
+            }
+
+            grid.innerHTML = leads.map(l => {
+                let qualityBadge = '';
+                if (l.lead_quality === 'HOT') {
+                    qualityBadge = `<span class="badge badge-hot">🔥 NÓNG • ${l.intent_score}đ</span>`;
+                } else if (l.lead_quality === 'WARM') {
+                    qualityBadge = `<span class="badge badge-warm">⚡ TIỀM NĂNG • ${l.intent_score}đ</span>`;
+                } else {
+                    qualityBadge = `<span class="badge badge-cold">${l.lead_quality} • ${l.intent_score}đ</span>`;
+                }
+
+                let urgencyColor = l.urgency === 'Khẩn cấp' ? 'var(--hot)' : (l.urgency === 'Cao' ? 'var(--warm)' : 'var(--primary)');
+
+                return `
+                <div class="lead-card">
+                    <div class="lead-card-header">
+                        <div>${qualityBadge}</div>
+                        <div style="font-size: 12px; font-weight: 700; color: ${urgencyColor};">⚠️ ${l.urgency}</div>
+                    </div>
+                    <div class="lead-title">${escapeHtml(l.title)}</div>
+                    <div class="lead-snippet">${escapeHtml(l.snippet)}</div>
+                    <div class="tags">
+                        <span class="tag">🏷️ ${l.category_label}</span>
+                        ${l.matched_keywords.map(k => `<span class="tag">#${k}</span>`).join('')}
+                    </div>
+                    <div class="lead-meta">
+                        <div class="meta-item">📍 ${l.location}</div>
+                        <div class="meta-item">🌐 ${l.platform}</div>
+                        <div class="meta-item">👤 ${l.author}</div>
+                    </div>
+                    <div class="lead-actions">
+                        <button class="btn btn-ghost" onclick="copyLead('${l.id}')">📋 Sao chép Lead</button>
+                        <a href="${l.url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Xem bài gốc ↗</a>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function filterLeads() {
+            const searchVal = document.getElementById('searchInput').value.toLowerCase().trim();
+            const filtered = leadsData.filter(l => {
+                const matchesQuality = (activeQuality === 'ALL') || (l.lead_quality === activeQuality);
+                const matchesSearch = !searchVal || 
+                    l.title.toLowerCase().includes(searchVal) || 
+                    l.snippet.toLowerCase().includes(searchVal) ||
+                    l.location.toLowerCase().includes(searchVal) ||
+                    l.category_label.toLowerCase().includes(searchVal) ||
+                    l.author.toLowerCase().includes(searchVal);
+                return matchesQuality && matchesSearch;
+            });
+            renderLeads(filtered);
+        }
+
+        function setQualityFilter(quality, btn) {
+            activeQuality = quality;
+            document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            filterLeads();
+        }
+
+        function copyLead(id) {
+            const lead = leadsData.find(l => l.id === id);
+            if (!lead) return;
+            const text = `[LEAD NHA KHOA - ${lead.category_label}]\n- Khách: ${lead.author} (${lead.location})\n- Điểm tiềm năng: ${lead.intent_score}/100 (${lead.lead_quality})\n- Nhu cầu: ${lead.title}\n- Tóm tắt: ${lead.snippet}\n- Link: ${lead.url}`;
+            navigator.clipboard.writeText(text).then(() => {
+                const toast = document.getElementById('toast');
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 2500);
+            });
+        }
+
+        // Initial render
+        renderLeads(leadsData);
+    </script>
+</body>
+</html>

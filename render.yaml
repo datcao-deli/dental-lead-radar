@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: dental-lead-radar
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python -m dental_scraper.server"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
