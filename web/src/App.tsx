@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
-type Role = "sales" | "admin";
-type LeadStatus = "New" | "Contacted" | "Booking" | "Qualified" | "Lost";
-type IconName =
+export type Role = "sales" | "admin";
+export type LeadStatus = "New" | "Contacted" | "Booking" | "Qualified" | "Lost";
+export type IconName =
   | "activity"
   | "bell"
   | "bot"
@@ -18,6 +18,8 @@ type IconName =
   | "filter"
   | "key"
   | "lead"
+  | "lock"
+  | "logout"
   | "menu"
   | "moon"
   | "more"
@@ -28,7 +30,18 @@ type IconName =
   | "settings"
   | "shield"
   | "sun"
+  | "user"
   | "users";
+
+export type AuthUser = {
+  id: string;
+  username: string;
+  name: string;
+  role: Role;
+  roleLabel: string;
+  avatar: string;
+  email: string;
+};
 
 export type Lead = {
   id: number | string;
@@ -191,6 +204,25 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
         <path d="M3 21a6 6 0 0 1 12 0M17 8h4M19 6v4" />
       </>
     ),
+    lock: (
+      <>
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </>
+    ),
+    logout: (
+      <>
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <polyline points="16 17 21 12 16 7" />
+        <line x1="21" y1="12" x2="9" y2="12" />
+      </>
+    ),
+    user: (
+      <>
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </>
+    ),
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     moon: <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />,
     more: <path d="M5 12h.01M12 12h.01M19 12h.01" />,
@@ -305,16 +337,16 @@ function StatCard({
 function Sidebar({
   collapsed,
   onCollapse,
-  role,
-  onRoleChange,
+  user,
+  onLogout,
   activeItem,
   onNavigate,
   totalLeads,
 }: {
   collapsed: boolean;
   onCollapse: () => void;
-  role: Role;
-  onRoleChange: (role: Role) => void;
+  user: AuthUser;
+  onLogout: () => void;
   activeItem: string;
   onNavigate: (item: string) => void;
   totalLeads: number;
@@ -326,13 +358,14 @@ function Sidebar({
   ] as const;
   const adminItems = [
     ["Tổng quan", "chart"],
+    ["Khách hàng", "lead"],
     ["Trình thu thập", "bot"],
     ["Từ khóa & Nguồn", "search"],
     ["Phân phối khách", "briefcase"],
     ["Nhân sự & Phân quyền", "users"],
     ["API & Máy chủ trung gian", "key"],
   ] as const;
-  const items = role === "sales" ? salesItems : adminItems;
+  const items = user.role === "sales" ? salesItems : adminItems;
 
   return (
     <aside className={`sidebar ${collapsed ? "is-collapsed" : ""}`}>
@@ -376,27 +409,28 @@ function Sidebar({
       </nav>
 
       <div className="sidebar-bottom">
-        {!collapsed && <p className="nav-label">Chế độ truy cập</p>}
-        <div className={`role-switch ${collapsed ? "vertical" : ""}`}>
+        {!collapsed && <p className="nav-label">Tài khoản đăng nhập</p>}
+        <div className={`sidebar-user-card ${collapsed ? "collapsed" : ""}`}>
+          <div className="sidebar-user-avatar">{user.avatar}</div>
+          {!collapsed && (
+            <div className="sidebar-user-info">
+              <strong className="sidebar-user-name">{user.name}</strong>
+              <span className={`sidebar-role-badge ${user.role}`}>
+                {user.role === "admin" ? "Quản trị viên" : "Nhân viên CSKH"}
+              </span>
+            </div>
+          )}
           <button
             type="button"
-            className={role === "sales" ? "active" : ""}
-            onClick={() => onRoleChange("sales")}
-            title="Nhân viên kinh doanh"
+            className="sidebar-logout-btn"
+            onClick={onLogout}
+            title="Đăng xuất khỏi hệ thống"
+            aria-label="Đăng xuất"
           >
-            <Icon name="lead" size={15} />
-            {!collapsed && "Kinh doanh"}
-          </button>
-          <button
-            type="button"
-            className={role === "admin" ? "active" : ""}
-            onClick={() => onRoleChange("admin")}
-            title="Quản trị viên"
-          >
-            <Icon name="shield" size={15} />
-            {!collapsed && "Quản trị"}
+            <Icon name="logout" size={15} />
           </button>
         </div>
+
         {!collapsed && (
           <div className="plan-card">
             <div>
@@ -419,13 +453,19 @@ function Topbar({
   isScanning,
   onTriggerScan,
   scanStatus,
+  user,
+  onLogout,
 }: {
   dark: boolean;
   onThemeChange: () => void;
   isScanning: boolean;
   onTriggerScan: () => void;
   scanStatus: string;
+  user: AuthUser;
+  onLogout: () => void;
 }) {
+  const [showMenu, setShowMenu] = useState(false);
+
   return (
     <header className="topbar">
       <div className="global-search">
@@ -459,13 +499,48 @@ function Topbar({
           <Icon name="bell" size={18} />
           <span />
         </button>
-        <div className="profile">
-          <div className="avatar">QL</div>
-          <div>
-            <strong>Nha Khoa Admin</strong>
-            <span>Hệ Thống Lead Radar</span>
-          </div>
-          <Icon name="chevron" size={13} />
+
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="profile-btn"
+            onClick={() => setShowMenu(!showMenu)}
+            aria-label="Tài khoản cá nhân"
+          >
+            <div className="avatar">{user.avatar}</div>
+            <div className="profile-text">
+              <strong>{user.name}</strong>
+              <span>{user.roleLabel}</span>
+            </div>
+            <Icon name="chevron" size={13} />
+          </button>
+
+          {showMenu && (
+            <div className="profile-dropdown">
+              <div className="profile-dropdown-header">
+                <div className="avatar large">{user.avatar}</div>
+                <div>
+                  <h4>{user.name}</h4>
+                  <p>@{user.username} • {user.email}</p>
+                  <span className={`role-badge ${user.role === "admin" ? "admin" : ""}`}>
+                    {user.role === "admin" ? "Quản trị viên toàn quyền" : "Chuyên viên tư vấn & CSKH"}
+                  </span>
+                </div>
+              </div>
+              <div className="profile-dropdown-divider" />
+              <button
+                type="button"
+                className="profile-logout-item"
+                onClick={() => {
+                  setShowMenu(false);
+                  onLogout();
+                }}
+              >
+                <Icon name="logout" size={16} />
+                <span>Đăng xuất tài khoản</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>
@@ -1374,12 +1449,222 @@ function ApiPanel() {
   );
 }
 
+function LoginScreen({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e?: React.FormEvent, directUser?: string, directPass?: string) => {
+    if (e) e.preventDefault();
+    const u = (directUser !== undefined ? directUser : username).trim().toLowerCase();
+    const p = directPass !== undefined ? directPass : password;
+
+    if (!u) {
+      setError("Vui lòng nhập tên tài khoản");
+      return;
+    }
+    if (!p) {
+      setError("Vui lòng nhập mật khẩu");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: u, password: p }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.user) {
+        onLogin(data.user);
+        return;
+      } else {
+        setError(data.error || "Tên đăng nhập hoặc mật khẩu không chính xác!");
+      }
+    } catch {
+      // Local fallback in case of connection limits
+      if (u === "admin" && (p === "123" || p === "admin123")) {
+        onLogin({
+          id: "usr_admin",
+          username: "admin",
+          name: "Nha Khoa Admin",
+          role: "admin",
+          roleLabel: "Quản trị viên hệ thống",
+          avatar: "AD",
+          email: "admin@dentalead.vn",
+        });
+        return;
+      }
+      if ((u === "nhanvien" || u === "linhnguyen") && (p === "123" || p === "123456")) {
+        onLogin({
+          id: "usr_sales1",
+          username: "nhanvien",
+          name: "Linh Nguyễn",
+          role: "sales",
+          roleLabel: "Chuyên viên tư vấn & CSKH",
+          avatar: "LN",
+          email: "linhnguyen@dentalead.vn",
+        });
+        return;
+      }
+      if (u === "huypham" && (p === "123" || p === "123456")) {
+        onLogin({
+          id: "usr_sales2",
+          username: "huypham",
+          name: "Huy Phạm",
+          role: "sales",
+          roleLabel: "Tư vấn viên Implant",
+          avatar: "HP",
+          email: "huypham@dentalead.vn",
+        });
+        return;
+      }
+      setError("Tên đăng nhập hoặc mật khẩu không chính xác!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickLogin = (u: string, p: string) => {
+    setUsername(u);
+    setPassword(p);
+    handleSubmit(undefined, u, p);
+  };
+
+  return (
+    <div className="login-wrapper">
+      <div className="login-card">
+        <div className="login-brand">
+          <div className="brand-mark large">
+            <span />
+            <span />
+            <span />
+          </div>
+          <h1>DentaLead AI</h1>
+          <p className="login-subtitle">Hệ thống Phân Quyền Quản Trị & Chăm Sóc Bệnh Nhân</p>
+        </div>
+
+        {error && (
+          <div className="login-error-alert" role="alert">
+            <Icon name="close" size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="form-group">
+            <label htmlFor="login-username">Tài khoản</label>
+            <div className="input-with-icon">
+              <Icon name="user" size={16} />
+              <input
+                id="login-username"
+                type="text"
+                placeholder="admin hoặc nhanvien"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="login-password">Mật khẩu</label>
+            <div className="input-with-icon">
+              <Icon name="lock" size={16} />
+              <input
+                id="login-password"
+                type="password"
+                placeholder="Mật khẩu đăng nhập (ví dụ: 123)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="login-submit-btn"
+            disabled={loading}
+          >
+            {loading ? "Đang xác thực tài khoản..." : "Đăng nhập hệ thống"}
+          </button>
+        </form>
+
+        <div className="quick-login-divider">
+          <span>hoặc đăng nhập nhanh bằng 1-chạm</span>
+        </div>
+
+        <div className="quick-login-grid">
+          <button
+            type="button"
+            className="quick-card admin"
+            onClick={() => handleQuickLogin("admin", "123")}
+          >
+            <div className="quick-avatar admin">AD</div>
+            <div className="quick-info">
+              <strong>👑 Quản trị viên (Admin)</strong>
+              <span>Tài khoản: <code>admin</code> • Mật khẩu: <code>123</code></span>
+              <em>Toàn quyền: bộ cào, từ khóa, xem tất cả leads & phân quyền</em>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className="quick-card sales"
+            onClick={() => handleQuickLogin("nhanvien", "123")}
+          >
+            <div className="quick-avatar sales">LN</div>
+            <div className="quick-info">
+              <strong>💼 Nhân viên (Linh Nguyễn)</strong>
+              <span>Tài khoản: <code>nhanvien</code> • Mật khẩu: <code>123</code></span>
+              <em>Chuyên môn: tiếp nhận leads, đặt lịch khám (không vào trang Admin)</em>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className="quick-card sales"
+            onClick={() => handleQuickLogin("huypham", "123")}
+          >
+            <div className="quick-avatar sales">HP</div>
+            <div className="quick-info">
+              <strong>🩺 Telesales (Huy Phạm)</strong>
+              <span>Tài khoản: <code>huypham</code> • Mật khẩu: <code>123</code></span>
+              <em>Chuyên môn: tư vấn Implant & dán sứ thẩm mỹ</em>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const [role, setRole] = useState<Role>("sales");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    try {
+      const saved = localStorage.getItem("dentalead_auth_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [collapsed, setCollapsed] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem("denta-theme") === "dark");
-  const [salesSection, setSalesSection] = useState("Khách hàng");
-  const [adminSection, setAdminSection] = useState("Tổng quan");
+  const [activeSection, setActiveSection] = useState(() => {
+    try {
+      const saved = localStorage.getItem("dentalead_auth_user");
+      if (saved) {
+        const u = JSON.parse(saved);
+        return u.role === "admin" ? "Tổng quan" : "Khách hàng";
+      }
+    } catch {}
+    return "Khách hàng";
+  });
   const [leadRecords, setLeadRecords] = useState<Lead[]>(initialLeads);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -1413,6 +1698,25 @@ export default function App() {
   useEffect(() => {
     fetchLeads();
   }, []);
+
+  const handleLogin = (user: AuthUser) => {
+    setCurrentUser(user);
+    localStorage.setItem("dentalead_auth_user", JSON.stringify(user));
+    if (user.role === "admin") {
+      setActiveSection("Tổng quan");
+    } else {
+      setActiveSection("Khách hàng");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+    localStorage.removeItem("dentalead_auth_user");
+    setCurrentUser(null);
+    setSelectedLead(null);
+  };
 
   const triggerScan = async (query = "") => {
     setIsScanning(true);
@@ -1475,18 +1779,21 @@ export default function App() {
     } catch {}
   };
 
+  if (!currentUser) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  const role = currentUser.role;
+
   return (
     <div className={`app ${collapsed ? "sidebar-collapsed" : ""}`}>
       <Sidebar
         collapsed={collapsed}
         onCollapse={() => setCollapsed(!collapsed)}
-        role={role}
-        onRoleChange={(r) => {
-          setRole(r);
-          setSelectedLead(null);
-        }}
-        activeItem={role === "sales" ? salesSection : adminSection}
-        onNavigate={role === "sales" ? setSalesSection : setAdminSection}
+        user={currentUser}
+        onLogout={handleLogout}
+        activeItem={activeSection}
+        onNavigate={setActiveSection}
         totalLeads={leadRecords.length}
       />
       <div className="app-main">
@@ -1496,11 +1803,22 @@ export default function App() {
           isScanning={isScanning}
           onTriggerScan={() => triggerScan()}
           scanStatus={scanStatus}
+          user={currentUser}
+          onLogout={handleLogout}
         />
         <main className="content">
           {role === "sales" ? (
             <SalesDashboard
-              section={salesSection}
+              section={activeSection}
+              leadRecords={leadRecords}
+              onOpenLead={setSelectedLead}
+              onStatusChange={handleLeadStatusChange}
+              isScanning={isScanning}
+              onTriggerScan={() => triggerScan()}
+            />
+          ) : activeSection === "Khách hàng" ? (
+            <SalesDashboard
+              section="Khách hàng"
               leadRecords={leadRecords}
               onOpenLead={setSelectedLead}
               onStatusChange={handleLeadStatusChange}
@@ -1509,7 +1827,7 @@ export default function App() {
             />
           ) : (
             <AdminDashboard
-              section={adminSection}
+              section={activeSection}
               onTriggerScan={triggerScan}
               isScanning={isScanning}
               totalLeads={leadRecords.length}

@@ -20,6 +20,70 @@ OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 LEADS_FILE = os.path.join(OUTPUT_DIR, "leads.json")
 CSV_FILE = os.path.join(OUTPUT_DIR, "leads.csv")
 
+# Auth Users Configuration
+AUTH_USERS = {
+    "admin": {
+        "passwords": ["123", "admin123", "admin@2026"],
+        "user": {
+            "id": "usr_admin",
+            "username": "admin",
+            "name": "Nha Khoa Admin",
+            "role": "admin",
+            "roleLabel": "Quản trị viên hệ thống",
+            "avatar": "AD",
+            "email": "admin@dentalead.vn",
+        }
+    },
+    "nhanvien": {
+        "passwords": ["123", "123456"],
+        "user": {
+            "id": "usr_sales1",
+            "username": "nhanvien",
+            "name": "Linh Nguyễn",
+            "role": "sales",
+            "roleLabel": "Chuyên viên tư vấn & CSKH",
+            "avatar": "LN",
+            "email": "linhnguyen@dentalead.vn",
+        }
+    },
+    "linhnguyen": {
+        "passwords": ["123", "123456"],
+        "user": {
+            "id": "usr_sales1",
+            "username": "linhnguyen",
+            "name": "Linh Nguyễn",
+            "role": "sales",
+            "roleLabel": "Chuyên viên tư vấn & CSKH",
+            "avatar": "LN",
+            "email": "linhnguyen@dentalead.vn",
+        }
+    },
+    "huypham": {
+        "passwords": ["123", "123456"],
+        "user": {
+            "id": "usr_sales2",
+            "username": "huypham",
+            "name": "Huy Phạm",
+            "role": "sales",
+            "roleLabel": "Tư vấn viên Implant",
+            "avatar": "HP",
+            "email": "huypham@dentalead.vn",
+        }
+    },
+    "maitran": {
+        "passwords": ["123", "123456"],
+        "user": {
+            "id": "usr_sales3",
+            "username": "maitran",
+            "name": "Mai Trần",
+            "role": "sales",
+            "roleLabel": "Trưởng nhóm CSKH",
+            "avatar": "MT",
+            "email": "maitran@dentalead.vn",
+        }
+    }
+}
+
 # Global scanner lock and status
 scanner_lock = threading.Lock()
 is_scanning = False
@@ -154,12 +218,49 @@ class DentalApiHandler(BaseHTTPRequestHandler):
             }, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Auth users list
+        if path == "/api/auth/users":
+            self._set_headers(200, "application/json")
+            users_list = [v["user"] for k, v in AUTH_USERS.items() if k in ["admin", "linhnguyen", "huypham", "maitran"]]
+            self.wfile.write(json.dumps({"users": users_list}, ensure_ascii=False).encode("utf-8"))
+            return
+
         # Serve static React UI files
         self._serve_static(path)
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+
+        # API: Authentication Login
+        if path == "/api/auth/login":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            payload = json.loads(body) if body else {}
+            username = str(payload.get("username", "")).strip().lower()
+            password = str(payload.get("password", "")).strip()
+
+            account = AUTH_USERS.get(username)
+            if account and password in account["passwords"]:
+                self._set_headers(200, "application/json")
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "token": f"dnt_token_{username}_valid",
+                    "user": account["user"]
+                }, ensure_ascii=False).encode("utf-8"))
+            else:
+                self._set_headers(401, "application/json")
+                self.wfile.write(json.dumps({
+                    "success": False,
+                    "error": "Tên đăng nhập hoặc mật khẩu không chính xác!"
+                }, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # API: Authentication Logout
+        if path == "/api/auth/logout":
+            self._set_headers(200, "application/json")
+            self.wfile.write(json.dumps({"success": True, "message": "Đã đăng xuất"}).encode("utf-8"))
+            return
 
         # API: Trigger live scan
         if path == "/api/scan":
