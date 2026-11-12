@@ -265,11 +265,69 @@ function StatCard({
   );
 }
 
+const REGION_OPTIONS = ["Đà Nẵng", "Hà Nội", "TP.HCM", "Huế", "Quảng Nam", "Toàn quốc"];
+
+const INTERVAL_PRESETS = [
+  { label: "15 phút", minutes: 15 },
+  { label: "30 phút", minutes: 30 },
+  { label: "1 tiếng", minutes: 60 },
+  { label: "2 tiếng", minutes: 120 },
+  { label: "6 tiếng", minutes: 360 },
+  { label: "12 tiếng", minutes: 720 },
+  { label: "24 tiếng", minutes: 1440 },
+];
+
+function formatIntervalShort(intervalSeconds?: number): string {
+  const secs = typeof intervalSeconds === "number" && intervalSeconds > 0 ? intervalSeconds : 3600;
+  const mins = Math.max(1, Math.round(secs / 60));
+  if (mins < 60) return `${mins}p/lần`;
+  if (mins % 60 === 0) return `${mins / 60}h/lần`;
+  return `${Math.floor(mins / 60)}h${mins % 60}p`;
+}
+
+function formatIntervalLong(intervalSeconds?: number): string {
+  const secs = typeof intervalSeconds === "number" && intervalSeconds > 0 ? intervalSeconds : 3600;
+  const mins = Math.max(1, Math.round(secs / 60));
+  if (mins < 60) return `${mins} phút / lần`;
+  if (mins % 60 === 0) return `${mins / 60} tiếng / lần`;
+  return `${Math.floor(mins / 60)} tiếng ${mins % 60} phút / lần`;
+}
+
+function isImageAvatar(avatar?: string): boolean {
+  if (!avatar) return false;
+  return avatar.startsWith("data:image/") || avatar.startsWith("http://") || avatar.startsWith("https://");
+}
+
+function computeInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "AD";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function AvatarBadge({
+  avatar,
+  name,
+  className = "avatar",
+}: {
+  avatar?: string;
+  name: string;
+  className?: string;
+}) {
+  if (isImageAvatar(avatar)) {
+    return (
+      <div className={className}>
+        <img src={avatar} alt={name} className="avatar-img" />
+      </div>
+    );
+  }
+  return <div className={className}>{avatar || computeInitials(name)}</div>;
+}
+
 function Sidebar({
   collapsed,
   onCollapse,
   user,
-  onLogout,
   activeItem,
   onNavigate,
   totalLeads,
@@ -277,7 +335,6 @@ function Sidebar({
   collapsed: boolean;
   onCollapse: () => void;
   user: AuthUser;
-  onLogout: () => void;
   activeItem: string;
   onNavigate: (item: string) => void;
   totalLeads: number;
@@ -338,43 +395,355 @@ function Sidebar({
           </button>
         ))}
       </nav>
+    </aside>
+  );
+}
 
-      <div className="sidebar-bottom">
-        {!collapsed && <p className="nav-label">Tài khoản đăng nhập</p>}
-        <div className={`sidebar-user-card ${collapsed ? "collapsed" : ""}`}>
-          <div className="sidebar-user-avatar">{user.avatar}</div>
-          {!collapsed && (
-            <div className="sidebar-user-info">
-              <strong className="sidebar-user-name">{user.name}</strong>
-              <span className={`sidebar-role-badge ${user.role}`}>
-                {user.role === "admin" ? "Quản trị viên" : "Nhân viên CSKH"}
-              </span>
-            </div>
-          )}
-          <button
-            type="button"
-            className="sidebar-logout-btn"
-            onClick={onLogout}
-            title="Đăng xuất khỏi hệ thống"
-            aria-label="Đăng xuất"
-          >
-            <Icon name="logout" size={15} />
+function AccountSettingsModal({
+  user,
+  onClose,
+  onSave,
+}: {
+  user: AuthUser;
+  onClose: () => void;
+  onSave: (updated: AuthUser) => void;
+}) {
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [roleLabel, setRoleLabel] = useState(user.roleLabel);
+  const [avatar, setAvatar] = useState(user.avatar);
+  const [avatarUrlInput, setAvatarUrlInput] = useState(isImageAvatar(user.avatar) ? user.avatar : "");
+  const [newPassword, setNewPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSide = 192;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          setAvatar(dataUrl);
+          setAvatarUrlInput("");
+        } else if (typeof reader.result === "string") {
+          setAvatar(reader.result);
+        }
+      };
+      if (typeof reader.result === "string") {
+        img.src = reader.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError("Vui lòng nhập tên hiển thị.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    const finalAvatar = avatarUrlInput.trim() || avatar || computeInitials(name);
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          name: name.trim(),
+          email: email.trim(),
+          roleLabel: roleLabel.trim(),
+          avatar: finalAvatar,
+          newPassword: newPassword.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || "Không thể cập nhật thông tin tài khoản.");
+        setSaving(false);
+        return;
+      }
+      onSave(data.user);
+      onClose();
+    } catch {
+      setError("Lỗi kết nối máy chủ.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Quản lý tài khoản">
+        <div className="modal-header">
+          <div>
+            <h3>Quản lý tài khoản</h3>
+            <p>Cập nhật thông tin cá nhân, chức danh và ảnh đại diện (@{user.username})</p>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng">
+            <Icon name="close" size={18} />
           </button>
         </div>
 
-        {!collapsed && (
-          <div className="plan-card">
-            <div>
-              <span>Khách hàng thu thập</span>
-              <strong>{totalLeads} / 1,000</strong>
-            </div>
-            <div className="plan-progress">
-              <span style={{ width: `${Math.min(100, Math.round((totalLeads / 1000) * 100))}%` }} />
+        <form className="modal-form" onSubmit={handleSubmit}>
+          <div className="avatar-editor-row">
+            <AvatarBadge avatar={avatarUrlInput.trim() || avatar} name={name} className="avatar avatar-preview-lg" />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <label className="secondary-button" style={{ cursor: "pointer", padding: "6px 12px", fontSize: "12px" }}>
+                  Tải ảnh đại diện
+                  <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: "none" }} />
+                </label>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  style={{ padding: "6px 10px", fontSize: "12px" }}
+                  onClick={() => {
+                    setAvatarUrlInput("");
+                    setAvatar(computeInitials(name));
+                  }}
+                >
+                  Dùng chữ cái ({computeInitials(name)})
+                </button>
+              </div>
+              <input
+                type="url"
+                placeholder="Hoặc dán URL ảnh đại diện (https://...)"
+                value={avatarUrlInput}
+                onChange={(e) => setAvatarUrlInput(e.target.value)}
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "7px 10px",
+                  color: "var(--text)",
+                  fontSize: "12px",
+                }}
+              />
             </div>
           </div>
-        )}
+
+          <div className="modal-field">
+            <label>Tên hiển thị</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Nha Khoa Admin" required />
+          </div>
+
+          <div className="modal-field">
+            <label>Email liên hệ</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@dentalead.vn" />
+          </div>
+
+          <div className="modal-field">
+            <label>Chức danh hiển thị</label>
+            <input value={roleLabel} onChange={(e) => setRoleLabel(e.target.value)} placeholder="Quản trị viên hệ thống" />
+          </div>
+
+          <div className="modal-field">
+            <label>Mật khẩu mới (bỏ trống nếu giữ nguyên)</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Nhập mật khẩu mới nếu muốn đổi"
+            />
+          </div>
+
+          {error && <div className="login-error">{error}</div>}
+
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={onClose}>
+              Hủy
+            </button>
+            <button type="submit" className="primary-button" disabled={saving}>
+              <Icon name="check" size={16} /> {saving ? "Đang lưu..." : "Lưu thông tin"}
+            </button>
+          </div>
+        </form>
       </div>
-    </aside>
+    </div>
+  );
+}
+
+function CrawlerConfigModal({
+  autoCrawler,
+  onClose,
+  onSave,
+}: {
+  autoCrawler?: any;
+  onClose: () => void;
+  onSave: (updated: any) => void;
+}) {
+  const initialMins = Math.max(1, Math.round((autoCrawler?.interval_seconds || 3600) / 60));
+  const [enabled, setEnabled] = useState<boolean>(autoCrawler?.enabled ?? true);
+  const [minutes, setMinutes] = useState<number>(initialMins);
+  const [target, setTarget] = useState<number>(autoCrawler?.hourly_target || 10);
+  const [location, setLocation] = useState<string>(autoCrawler?.location || "Đà Nẵng");
+  const [customKeywords, setCustomKeywords] = useState<string>(
+    Array.isArray(autoCrawler?.location_keywords) && !REGION_OPTIONS.includes(autoCrawler?.location)
+      ? autoCrawler.location_keywords.join(", ")
+      : "",
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanMins = Math.max(1, Math.min(1440, Number(minutes) || 60));
+    const cleanTarget = Math.max(1, Math.min(50, Number(target) || 10));
+    const cleanLoc = location.trim() || "Đà Nẵng";
+    setSaving(true);
+    setError("");
+    try {
+      const payload: Record<string, any> = {
+        enabled,
+        interval_seconds: cleanMins * 60,
+        hourly_target: cleanTarget,
+        location: cleanLoc,
+      };
+      if (customKeywords.trim()) {
+        payload.location_keywords = customKeywords.trim();
+      }
+      const res = await fetch("/api/crawler/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || "Không thể lưu cấu hình bot quét.");
+        setSaving(false);
+        return;
+      }
+      onSave(data.auto_crawler);
+      onClose();
+    } catch {
+      setError("Lỗi kết nối máy chủ.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Tùy chỉnh thời gian và khu vực quét">
+        <div className="modal-header">
+          <div>
+            <h3>Cấu hình Bot Quét Tự Động & Khu Vực</h3>
+            <p>Thay đổi chu kỳ quét tự động và khu vực khách hàng mục tiêu theo nhu cầu</p>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng">
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+
+        <form className="modal-form" onSubmit={handleSubmit}>
+          <div className="modal-field">
+            <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>Trạng thái tự động quét</span>
+              <button
+                type="button"
+                className={`toggle ${enabled ? "on" : ""}`}
+                onClick={() => setEnabled(!enabled)}
+                aria-label="Bật tắt tự động cào"
+              />
+            </label>
+          </div>
+
+          <div className="modal-field">
+            <label>Chu kỳ boss tự động quét (phút / lần)</label>
+            <div className="preset-chips">
+              {INTERVAL_PRESETS.map((p) => (
+                <button
+                  key={p.minutes}
+                  type="button"
+                  className={`preset-chip ${minutes === p.minutes ? "active" : ""}`}
+                  onClick={() => setMinutes(p.minutes)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              min={1}
+              max={1440}
+              value={minutes}
+              onChange={(e) => setMinutes(Number(e.target.value))}
+              placeholder="Nhập số phút (1 - 1440)"
+            />
+          </div>
+
+          <div className="modal-field">
+            <label>Số bài viết mới tối đa mỗi lượt quét (1 - 50)</label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={target}
+              onChange={(e) => setTarget(Number(e.target.value))}
+            />
+          </div>
+
+          <div className="modal-field">
+            <label>Khu vực thu thập khách hàng</label>
+            <div className="preset-chips">
+              {REGION_OPTIONS.map((reg) => (
+                <button
+                  key={reg}
+                  type="button"
+                  className={`preset-chip ${location === reg ? "active" : ""}`}
+                  onClick={() => {
+                    setLocation(reg);
+                    setCustomKeywords("");
+                  }}
+                >
+                  {reg}
+                </button>
+              ))}
+            </div>
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Hoặc nhập tên tỉnh/thành phố bất kỳ (VD: Bình Dương, Cần Thơ)"
+            />
+          </div>
+
+          <div className="modal-field">
+            <label>Từ khóa địa điểm mở rộng (tùy chọn, ngăn cách bởi dấu phẩy)</label>
+            <input
+              value={customKeywords}
+              onChange={(e) => setCustomKeywords(e.target.value)}
+              placeholder="VD: hải châu, sơn trà, thanh khê (để trống nếu dùng mặc định theo khu vực)"
+            />
+          </div>
+
+          {error && <div className="login-error">{error}</div>}
+
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={onClose}>
+              Hủy
+            </button>
+            <button type="submit" className="primary-button" disabled={saving}>
+              <Icon name="check" size={16} /> {saving ? "Đang áp dụng..." : "Lưu cấu hình"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -386,6 +755,8 @@ function Topbar({
   scanStatus,
   user,
   onLogout,
+  onOpenAccountModal,
+  onOpenCrawlerModal,
   autoCrawler,
   antiSleep,
 }: {
@@ -396,10 +767,16 @@ function Topbar({
   scanStatus: string;
   user: AuthUser;
   onLogout: () => void;
+  onOpenAccountModal: () => void;
+  onOpenCrawlerModal: () => void;
   autoCrawler?: any;
   antiSleep?: any;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const intervalShort = formatIntervalShort(autoCrawler?.interval_seconds);
+  const activeRegion = autoCrawler?.location || "Đà Nẵng";
+  const isAutoEnabled = autoCrawler?.enabled ?? true;
+  const isAdmin = user.role === "admin";
 
   return (
     <header className="topbar">
@@ -413,31 +790,40 @@ function Topbar({
       </div>
       <div className="topbar-actions">
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <div
+          <button
+            type="button"
+            className="status-pill-btn"
+            onClick={() => isAdmin && onOpenCrawlerModal()}
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "5px 12px",
-              borderRadius: "20px",
-              fontSize: "12px",
-              fontWeight: 500,
-              background: autoCrawler?.is_crawling ? "rgba(16, 185, 129, 0.15)" : "var(--surface-soft)",
-              color: autoCrawler?.is_crawling ? "#10b981" : "var(--text)",
+              background: autoCrawler?.is_crawling
+                ? "rgba(16, 185, 129, 0.15)"
+                : !isAutoEnabled
+                  ? "rgba(245, 158, 11, 0.14)"
+                  : "var(--surface-soft)",
+              color: autoCrawler?.is_crawling ? "#10b981" : !isAutoEnabled ? "#d97706" : "var(--text)",
               border: "1px solid var(--border)",
+              cursor: isAdmin ? "pointer" : "default",
             }}
-            title={autoCrawler?.message || "Tự động quét: 1 tiếng / lần (dừng khi đủ 10 bài mới)"}
+            title={
+              isAdmin
+                ? "Bấm để thay đổi thời gian boss tự động quét"
+                : autoCrawler?.message || `Tự động quét: ${formatIntervalLong(autoCrawler?.interval_seconds)}`
+            }
           >
             <span
               style={{
                 width: "7px",
                 height: "7px",
                 borderRadius: "50%",
-                backgroundColor: autoCrawler?.is_crawling ? "#10b981" : "#3b82f6",
+                backgroundColor: autoCrawler?.is_crawling ? "#10b981" : !isAutoEnabled ? "#d97706" : "#3b82f6",
               }}
             />
-            {autoCrawler?.is_crawling ? "Đang cào (1h/lần)..." : "⏰ Tự động: 1h/lần"}
-          </div>
+            {autoCrawler?.is_crawling
+              ? `Đang cào (${intervalShort})...`
+              : isAutoEnabled
+                ? `⏰ Tự động: ${intervalShort}`
+                : "⏸ Tự động: Tạm dừng"}
+          </button>
 
           <div
             style={{
@@ -457,23 +843,25 @@ function Topbar({
             <span>🛡️ Chống ngủ đông 24/7</span>
           </div>
 
-          <div
+          <button
+            type="button"
+            className="status-pill-btn"
+            onClick={() => isAdmin && onOpenCrawlerModal()}
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "5px 12px",
-              borderRadius: "20px",
-              fontSize: "12px",
               fontWeight: 600,
               background: "rgba(14, 165, 233, 0.12)",
               color: "#0284c7",
               border: "1px solid rgba(14, 165, 233, 0.3)",
+              cursor: isAdmin ? "pointer" : "default",
             }}
-            title="Hệ thống chỉ quét và thu thập khách hàng có nhu cầu tại TP. Đà Nẵng"
+            title={
+              isAdmin
+                ? `Bấm để tùy chỉnh khu vực quét (hiện tại: ${activeRegion})`
+                : `Hệ thống đang quét khách hàng tại ${activeRegion}`
+            }
           >
-            <span>📍 Khu vực: Đà Nẵng</span>
-          </div>
+            <span>📍 Khu vực: {activeRegion}</span>
+          </button>
         </div>
 
         <button
@@ -506,7 +894,7 @@ function Topbar({
             onClick={() => setShowMenu(!showMenu)}
             aria-label="Tài khoản cá nhân"
           >
-            <div className="avatar">{user.avatar}</div>
+            <AvatarBadge avatar={user.avatar} name={user.name} className="avatar" />
             <div className="profile-text">
               <strong>{user.name}</strong>
               <span>{user.roleLabel}</span>
@@ -517,7 +905,7 @@ function Topbar({
           {showMenu && (
             <div className="profile-dropdown">
               <div className="profile-dropdown-header">
-                <div className="avatar large">{user.avatar}</div>
+                <AvatarBadge avatar={user.avatar} name={user.name} className="avatar large" />
                 <div>
                   <h4>{user.name}</h4>
                   <p>@{user.username} • {user.email}</p>
@@ -529,14 +917,25 @@ function Topbar({
               <div className="profile-dropdown-divider" />
               <button
                 type="button"
-                className="profile-logout-item"
+                className="profile-menu-item"
+                onClick={() => {
+                  setShowMenu(false);
+                  onOpenAccountModal();
+                }}
+              >
+                <Icon name="user" size={16} />
+                <span>Quản lý tài khoản</span>
+              </button>
+              <button
+                type="button"
+                className="profile-login-item"
                 onClick={() => {
                   setShowMenu(false);
                   onLogout();
                 }}
               >
                 <Icon name="logout" size={16} />
-                <span>Đăng xuất tài khoản</span>
+                <span>Đăng nhập</span>
               </button>
             </div>
           )}
@@ -804,6 +1203,10 @@ function SalesDashboard({
     URL.revokeObjectURL(url);
   };
 
+  const activeRegion = autoCrawler?.location || "Đà Nẵng";
+  const intervalLong = formatIntervalLong(autoCrawler?.interval_seconds);
+  const hourlyTarget = autoCrawler?.hourly_target || 10;
+
   return (
     <>
       <div className="page-heading">
@@ -811,17 +1214,17 @@ function SalesDashboard({
           <span className="breadcrumb">Khu vực kinh doanh / {section}</span>
           <h1>
             {section === "Cần chăm sóc"
-              ? "Khách hàng cần chăm sóc (Đà Nẵng)"
+              ? `Khách hàng cần chăm sóc (${activeRegion})`
               : section === "Đã đặt lịch"
-                ? "Khách hàng đã đặt lịch (Đà Nẵng)"
-                : "Danh sách khách hàng tiềm năng tại Đà Nẵng"}
+                ? `Khách hàng đã đặt lịch (${activeRegion})`
+                : `Danh sách khách hàng tiềm năng tại ${activeRegion}`}
           </h1>
           <p>
             {section === "Cần chăm sóc"
-              ? "Những khách hàng có nhu cầu khám răng tại Đà Nẵng đang cần được liên hệ tư vấn tiếp."
+              ? `Những khách hàng có nhu cầu khám răng tại ${activeRegion} đang cần được liên hệ tư vấn tiếp.`
               : section === "Đã đặt lịch"
-                ? "Theo dõi các khách hàng đã xác nhận lịch hẹn khám tại khu vực Đà Nẵng."
-                : "Toàn bộ khách hàng có nhu cầu khám răng, đau răng, làm răng tại khu vực Đà Nẵng do hệ thống AI phát hiện."}
+                ? `Theo dõi các khách hàng đã xác nhận lịch hẹn khám tại khu vực ${activeRegion}.`
+                : `Toàn bộ khách hàng có nhu cầu khám răng, đau răng, làm răng tại khu vực ${activeRegion} do hệ thống AI phát hiện.`}
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -831,7 +1234,7 @@ function SalesDashboard({
             onClick={onTriggerScan}
             disabled={isScanning}
           >
-            <Icon name="bot" size={16} /> {isScanning ? "Đang quét..." : "Quét Leads Mới (Đà Nẵng)"}
+            <Icon name="bot" size={16} /> {isScanning ? "Đang quét..." : `Quét Leads Mới (${activeRegion})`}
           </button>
           <button type="button" className="primary-button export-button" onClick={exportLeads}>
             <Icon name="database" size={16} /> Xuất Excel CSV
@@ -867,7 +1270,9 @@ function SalesDashboard({
             />
             <strong>Khu vực:</strong>
             <span style={{ color: "#0284c7", fontWeight: 600 }}>
-              100% Đà Nẵng (Hải Châu, Thanh Khê, Sơn Trà, Cẩm Lệ, Liên Chiểu...)
+              {activeRegion === "Đà Nẵng"
+                ? "100% Đà Nẵng (Hải Châu, Thanh Khê, Sơn Trà, Cẩm Lệ, Liên Chiểu...)"
+                : activeRegion}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -884,7 +1289,9 @@ function SalesDashboard({
             <span style={{ color: "var(--text-muted)" }}>
               {autoCrawler?.is_crawling
                 ? "Đang cào dữ liệu mới..."
-                : "1 tiếng / lần (dừng sau khi gom 10 bài mới)"}
+                : autoCrawler?.enabled === false
+                  ? "Đang tạm dừng"
+                  : `${intervalLong} (dừng sau khi gom ${hourlyTarget} bài mới)`}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1144,6 +1551,8 @@ function AdminDashboard({
   totalLeads,
   autoCrawler,
   antiSleep,
+  onOpenCrawlerModal,
+  onUpdateCrawler,
 }: {
   section: string;
   onTriggerScan: (query?: string) => void;
@@ -1151,6 +1560,8 @@ function AdminDashboard({
   totalLeads: number;
   autoCrawler?: any;
   antiSleep?: any;
+  onOpenCrawlerModal?: () => void;
+  onUpdateCrawler?: (updated: any) => void;
 }) {
   return (
     <>
@@ -1160,7 +1571,16 @@ function AdminDashboard({
           <h1>{section}</h1>
           <p>Giám sát bộ cào dữ liệu, từ khóa tìm kiếm và cấu hình hệ thống.</p>
         </div>
-        <div className="heading-actions">
+        <div className="heading-actions" style={{ display: "flex", gap: "10px" }}>
+          {onOpenCrawlerModal && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onOpenCrawlerModal}
+            >
+              <Icon name="settings" size={16} /> Tùy chỉnh thời gian & khu vực
+            </button>
+          )}
           <button
             type="button"
             className="primary-button"
@@ -1172,7 +1592,12 @@ function AdminDashboard({
         </div>
       </div>
       {section === "Tổng quan" && (
-        <AdminOverview totalLeads={totalLeads} autoCrawler={autoCrawler} antiSleep={antiSleep} />
+        <AdminOverview
+          totalLeads={totalLeads}
+          autoCrawler={autoCrawler}
+          antiSleep={antiSleep}
+          onOpenCrawlerModal={onOpenCrawlerModal}
+        />
       )}
       {section === "Trình thu thập" && (
         <CrawlerPanel
@@ -1180,6 +1605,7 @@ function AdminDashboard({
           isScanning={isScanning}
           autoCrawler={autoCrawler}
           antiSleep={antiSleep}
+          onUpdateCrawler={onUpdateCrawler}
         />
       )}
       {section === "Từ khóa & Nguồn" && <KeywordPanel onTriggerScan={onTriggerScan} />}
@@ -1194,28 +1620,45 @@ function AdminOverview({
   totalLeads,
   autoCrawler,
   antiSleep,
+  onOpenCrawlerModal,
 }: {
   totalLeads: number;
   autoCrawler?: any;
   antiSleep?: any;
+  onOpenCrawlerModal?: () => void;
 }) {
+  const activeRegion = autoCrawler?.location || "Đà Nẵng";
+  const intervalLong = formatIntervalLong(autoCrawler?.interval_seconds);
+  const hourlyTarget = autoCrawler?.hourly_target || 10;
+  const isEnabled = autoCrawler?.enabled ?? true;
+
   return (
     <>
       <div className="stats-grid">
         <StatCard
           icon="database"
-          label="Tổng leads tại Đà Nẵng"
+          label={`Tổng leads tại ${activeRegion}`}
           value={String(totalLeads)}
           detail="100% người dùng thật"
           tone="blue"
         />
-        <StatCard
-          icon="bot"
-          label="Tự động cào tại Đà Nẵng"
-          value={autoCrawler?.is_crawling ? "Đang cào..." : "1 tiếng / lần"}
-          detail={autoCrawler?.next_run ? `Kế tiếp: ${autoCrawler.next_run.split(" ")[1]}` : "Chu kỳ 10 bài mới (ĐN)"}
-          tone="green"
-        />
+        <div
+          onClick={() => onOpenCrawlerModal?.()}
+          style={{ cursor: onOpenCrawlerModal ? "pointer" : "default" }}
+          title={onOpenCrawlerModal ? "Bấm để thay đổi thời gian quét & khu vực" : undefined}
+        >
+          <StatCard
+            icon="bot"
+            label={`Tự động cào (${activeRegion})`}
+            value={autoCrawler?.is_crawling ? "Đang cào..." : isEnabled ? intervalLong : "Tạm dừng"}
+            detail={
+              autoCrawler?.next_run
+                ? `Kế tiếp: ${autoCrawler.next_run.split(" ")[1]} • ${hourlyTarget} bài/lần`
+                : `Chu kỳ ${hourlyTarget} bài mới (${activeRegion})`
+            }
+            tone="green"
+          />
+        </div>
         <StatCard
           icon="shield"
           label="Chống ngủ đông 24/7"
@@ -1270,30 +1713,96 @@ function CrawlerPanel({
   isScanning = false,
   autoCrawler,
   antiSleep,
+  onUpdateCrawler,
 }: {
   compact?: boolean;
   onTriggerScan?: (query?: string) => void;
   isScanning?: boolean;
   autoCrawler?: any;
   antiSleep?: any;
+  onUpdateCrawler?: (updated: any) => void;
 }) {
   const [customQuery, setCustomQuery] = useState("");
   const [states, setStates] = useState([true, true, true]);
+  const [enabled, setEnabled] = useState<boolean>(autoCrawler?.enabled ?? true);
+  const [minutes, setMinutes] = useState<number>(
+    Math.max(1, Math.round((autoCrawler?.interval_seconds || 3600) / 60)),
+  );
+  const [target, setTarget] = useState<number>(autoCrawler?.hourly_target || 10);
+  const [region, setRegion] = useState<string>(autoCrawler?.location || "Đà Nẵng");
+  const [customKeywords, setCustomKeywords] = useState<string>("");
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [saveNotice, setSaveNotice] = useState("");
+
+  useEffect(() => {
+    if (!autoCrawler) return;
+    if (typeof autoCrawler.enabled === "boolean") setEnabled(autoCrawler.enabled);
+    if (typeof autoCrawler.interval_seconds === "number") {
+      setMinutes(Math.max(1, Math.round(autoCrawler.interval_seconds / 60)));
+    }
+    if (typeof autoCrawler.hourly_target === "number") {
+      setTarget(autoCrawler.hourly_target);
+    }
+    if (autoCrawler.location) {
+      setRegion(autoCrawler.location);
+    }
+  }, [autoCrawler]);
+
+  const activeRegion = autoCrawler?.location || region || "Đà Nẵng";
+  const intervalLong = formatIntervalLong(autoCrawler?.interval_seconds || minutes * 60);
+  const hourlyTarget = autoCrawler?.hourly_target || target || 10;
+
+  const handleSaveInlineConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanMins = Math.max(1, Math.min(1440, Number(minutes) || 60));
+    const cleanTarget = Math.max(1, Math.min(50, Number(target) || 10));
+    const cleanLoc = region.trim() || "Đà Nẵng";
+    setSavingConfig(true);
+    setSaveNotice("");
+    try {
+      const payload: Record<string, any> = {
+        enabled,
+        interval_seconds: cleanMins * 60,
+        hourly_target: cleanTarget,
+        location: cleanLoc,
+      };
+      if (customKeywords.trim()) {
+        payload.location_keywords = customKeywords.trim();
+      }
+      const res = await fetch("/api/crawler/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        onUpdateCrawler?.(data.auto_crawler);
+        setSaveNotice(`Đã lưu: ${formatIntervalLong(cleanMins * 60)} tại ${cleanLoc} (${cleanTarget} bài/lần)`);
+      } else {
+        setSaveNotice(data.error || "Không thể lưu cấu hình.");
+      }
+    } catch {
+      setSaveNotice("Lỗi kết nối máy chủ.");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   const crawlers = [
     {
-      name: "Threads (@threads.com) Đà Nẵng",
+      name: `Threads (@threads.com) ${activeRegion}`,
       source: "Threads",
       rate: "Quét bài mới & thảo luận",
       last: "Hoạt động",
     },
     {
-      name: "Facebook Public Groups Nha Khoa Đà Nẵng (6 nhóm)",
+      name: `Facebook Public Groups Nha Khoa ${activeRegion}`,
       source: "Facebook",
       rate: "Hội Niềng Răng & Review Nha Khoa",
       last: "Hoạt động",
     },
     {
-      name: "Facebook Search Intent Đà Nẵng",
+      name: `Facebook Search Intent ${activeRegion}`,
       source: "Facebook",
       rate: "Tìm kiếm bài hỏi đáp công khai",
       last: "Hoạt động",
@@ -1313,63 +1822,161 @@ function CrawlerPanel({
       </div>
 
       {!compact && (
-        <div
-          style={{
-            background: "var(--surface-soft)",
-            border: "1px solid var(--border)",
-            borderRadius: "10px",
-            padding: "14px 16px",
-            marginBottom: "20px",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "14px",
-            fontSize: "13px",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, color: "var(--primary)" }}>
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  background: autoCrawler?.is_crawling ? "#10b981" : "#3b82f6",
-                }}
-              />
-              Tự động cào định kỳ 1 tiếng / lần tại Đà Nẵng (10 bài mới)
+        <>
+          <div
+            style={{
+              background: "var(--surface-soft)",
+              border: "1px solid var(--border)",
+              borderRadius: "10px",
+              padding: "14px 16px",
+              marginBottom: "16px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "14px",
+              fontSize: "13px",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, color: "var(--primary)" }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    background: autoCrawler?.is_crawling ? "#10b981" : enabled ? "#3b82f6" : "#d97706",
+                  }}
+                />
+                {enabled
+                  ? `Tự động cào định kỳ ${intervalLong} tại ${activeRegion} (${hourlyTarget} bài mới)`
+                  : `Tự động cào đang tạm dừng (${activeRegion})`}
+              </div>
+              <div style={{ color: "var(--text)" }}>
+                {autoCrawler?.is_crawling
+                  ? `⚡ Đang tiến hành quét ${hourlyTarget} bài viết thật từ bệnh nhân tại ${activeRegion}...`
+                  : enabled
+                    ? `Trạng thái: Nghỉ giữa chu kỳ (dừng sau khi gom đủ ${hourlyTarget} bài mới tại ${activeRegion})`
+                    : "Trạng thái: Đang tắt tự động cào (chỉ quét thủ công)"}
+              </div>
+              <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                {autoCrawler?.last_run
+                  ? `Lần cào gần nhất: ${autoCrawler.last_run} (Thêm ${autoCrawler.leads_added_last_run || 0} bài mới)`
+                  : "Đã khởi động tiến trình ngầm."}
+              </div>
+              <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                {autoCrawler?.next_run ? `Lần cào kế tiếp: ${autoCrawler.next_run}` : "Lần kế tiếp: đang chờ cấu hình..."}
+              </div>
             </div>
-            <div style={{ color: "var(--text)" }}>
-              {autoCrawler?.is_crawling
-                ? "⚡ Đang tiến hành quét 10 bài viết thật từ bệnh nhân tại Đà Nẵng..."
-                : "Trạng thái: Nghỉ giữa chu kỳ (dừng sau khi gom đủ 10 bài mới tại Đà Nẵng)"}
-            </div>
-            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
-              {autoCrawler?.last_run
-                ? `Lần cào gần nhất: ${autoCrawler.last_run} (Thêm ${autoCrawler.leads_added_last_run || 0} bài mới)`
-                : "Đã khởi động tiến trình ngầm."}
-            </div>
-            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
-              {autoCrawler?.next_run ? `Lần cào kế tiếp: ${autoCrawler.next_run}` : "Lần kế tiếp: đang lên lịch..."}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, color: "#10b981" }}>
+                <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#10b981" }} />
+                Cơ chế chống ngủ đông Render (Keep-Alive 24/7)
+              </div>
+              <div style={{ color: "var(--text)" }}>
+                Máy chủ được ping tự động mỗi 9 phút để tránh cơ chế ngủ đông 15 phút của Render free tier.
+              </div>
+              <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                {antiSleep?.status || "Đang hoạt động 24/7 liên tục"}
+              </div>
+              <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                {antiSleep?.total_pings ? `Tổng số ping giữ thức: ${antiSleep.total_pings} lần` : "Đã kích hoạt daemon"}
+              </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, color: "#10b981" }}>
-              <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#10b981" }} />
-              Cơ chế chống ngủ đông Render (Keep-Alive 24/7)
+          <form className="crawler-config-card" onSubmit={handleSaveInlineConfig}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+              <div>
+                <strong style={{ fontSize: "14px" }}>Tùy chỉnh lịch Boss Quét & Khu Vực</strong>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--text-soft)" }}>
+                  Thay đổi thời gian tự động quét và phạm vi khu vực khách hàng theo ý muốn
+                </p>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", fontWeight: 600 }}>
+                <span>Tự động chạy</span>
+                <button
+                  type="button"
+                  className={`toggle ${enabled ? "on" : ""}`}
+                  onClick={() => setEnabled(!enabled)}
+                  aria-label="Bật tắt tự động cào"
+                />
+              </label>
             </div>
-            <div style={{ color: "var(--text)" }}>
-              Máy chủ được ping tự động mỗi 9 phút để tránh cơ chế ngủ đông 15 phút của Render free tier.
+
+            <div className="crawler-config-grid">
+              <div className="modal-field">
+                <label>Chu kỳ quét (phút / lần)</label>
+                <div className="preset-chips">
+                  {INTERVAL_PRESETS.slice(0, 5).map((p) => (
+                    <button
+                      key={p.minutes}
+                      type="button"
+                      className={`preset-chip ${minutes === p.minutes ? "active" : ""}`}
+                      onClick={() => setMinutes(p.minutes)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={minutes}
+                  onChange={(e) => setMinutes(Number(e.target.value))}
+                />
+              </div>
+
+              <div className="modal-field">
+                <label>Khu vực thu thập mục tiêu</label>
+                <div className="preset-chips">
+                  {REGION_OPTIONS.map((reg) => (
+                    <button
+                      key={reg}
+                      type="button"
+                      className={`preset-chip ${region === reg ? "active" : ""}`}
+                      onClick={() => {
+                        setRegion(reg);
+                        setCustomKeywords("");
+                      }}
+                    >
+                      {reg}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  placeholder="Nhập tỉnh/thành phố (VD: Đà Nẵng, Bình Dương)"
+                />
+              </div>
+
+              <div className="modal-field">
+                <label>Số bài mới mỗi lượt (1 - 50)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={target}
+                  onChange={(e) => setTarget(Number(e.target.value))}
+                />
+                <input
+                  value={customKeywords}
+                  onChange={(e) => setCustomKeywords(e.target.value)}
+                  placeholder="Từ khóa quận/huyện tùy chọn (VD: hải châu, sơn trà)"
+                />
+              </div>
             </div>
-            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
-              {antiSleep?.status || "Đang hoạt động 24/7 liên tục"}
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "12px", color: "#10b981", fontWeight: 600 }}>{saveNotice}</span>
+              <button type="submit" className="primary-button" disabled={savingConfig}>
+                <Icon name="check" size={16} /> {savingConfig ? "Đang lưu..." : "Áp dụng lịch & khu vực"}
+              </button>
             </div>
-            <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
-              {antiSleep?.total_pings ? `Tổng số ping giữ thức: ${antiSleep.total_pings} lần` : "Đã kích hoạt daemon"}
-            </div>
-          </div>
-        </div>
+          </form>
+        </>
       )}
 
       {!compact && onTriggerScan && (
@@ -1383,7 +1990,7 @@ function CrawlerPanel({
               padding: "10px 14px",
               color: "var(--text)",
             }}
-            placeholder="Nhập từ khóa quét tại Đà Nẵng (ví dụ: 'đau răng Hải Châu', 'nhổ răng khôn Sơn Trà')..."
+            placeholder={`Nhập từ khóa quét tại ${activeRegion} (ví dụ: 'đau răng', 'nhổ răng khôn')...`}
             value={customQuery}
             onChange={(e) => setCustomQuery(e.target.value)}
           />
@@ -1824,6 +2431,8 @@ export default function App() {
   const [scanStatus, setScanStatus] = useState("Sẵn sàng");
   const [autoCrawler, setAutoCrawler] = useState<any>(null);
   const [antiSleep, setAntiSleep] = useState<any>(null);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showCrawlerModal, setShowCrawlerModal] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -1880,6 +2489,15 @@ export default function App() {
     }
   };
 
+  const handleProfileSave = (updatedUser: AuthUser) => {
+    setCurrentUser(updatedUser);
+    localStorage.setItem("dentalead_auth_user", JSON.stringify(updatedUser));
+  };
+
+  const handleCrawlerSave = (updatedCrawler: any) => {
+    setAutoCrawler(updatedCrawler);
+  };
+
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -1887,6 +2505,8 @@ export default function App() {
     localStorage.removeItem("dentalead_auth_user");
     setCurrentUser(null);
     setSelectedLead(null);
+    setShowAccountModal(false);
+    setShowCrawlerModal(false);
   };
 
   const triggerScan = async (query = "") => {
@@ -1896,7 +2516,7 @@ export default function App() {
       const res = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, limit: 10 }),
+        body: JSON.stringify({ query, limit: autoCrawler?.hourly_target || 10 }),
       });
       if (res.ok) {
         const interval = setInterval(async () => {
@@ -1962,7 +2582,6 @@ export default function App() {
         collapsed={collapsed}
         onCollapse={() => setCollapsed(!collapsed)}
         user={currentUser}
-        onLogout={handleLogout}
         activeItem={activeSection}
         onNavigate={setActiveSection}
         totalLeads={leadRecords.length}
@@ -1976,6 +2595,8 @@ export default function App() {
           scanStatus={scanStatus}
           user={currentUser}
           onLogout={handleLogout}
+          onOpenAccountModal={() => setShowAccountModal(true)}
+          onOpenCrawlerModal={() => setShowCrawlerModal(true)}
           autoCrawler={autoCrawler}
           antiSleep={antiSleep}
         />
@@ -2010,6 +2631,8 @@ export default function App() {
               totalLeads={leadRecords.length}
               autoCrawler={autoCrawler}
               antiSleep={antiSleep}
+              onOpenCrawlerModal={() => setShowCrawlerModal(true)}
+              onUpdateCrawler={handleCrawlerSave}
             />
           )}
         </main>
@@ -2020,6 +2643,20 @@ export default function App() {
           onClose={() => setSelectedLead(null)}
           onStatusChange={(status) => handleLeadStatusChange(selectedLead.id, status)}
           onNoteChange={(note) => handleLeadNoteChange(selectedLead.id, note)}
+        />
+      )}
+      {showAccountModal && (
+        <AccountSettingsModal
+          user={currentUser}
+          onClose={() => setShowAccountModal(false)}
+          onSave={handleProfileSave}
+        />
+      )}
+      {showCrawlerModal && (
+        <CrawlerConfigModal
+          autoCrawler={autoCrawler}
+          onClose={() => setShowCrawlerModal(false)}
+          onSave={handleCrawlerSave}
         />
       )}
     </div>

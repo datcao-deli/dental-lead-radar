@@ -4,7 +4,7 @@ Identifies real patients seeking dental treatments in Đà Nẵng vs clinics pos
 """
 
 import re
-from typing import List
+from typing import List, Optional
 from .config import (
     DENTAL_CATEGORIES,
     INTENT_SIGNALS,
@@ -18,6 +18,14 @@ from .models import LeadItem
 
 class IntentAnalyzer:
     """Analyzes text snippets and titles to classify intent, detect spam, and score leads."""
+
+    default_location_mode: str = "Đà Nẵng"
+    default_location_keywords: Optional[List[str]] = None
+
+    @classmethod
+    def set_target_location(cls, location_mode: str, location_keywords: Optional[List[str]] = None):
+        cls.default_location_mode = (location_mode or "Đà Nẵng").strip() or "Đà Nẵng"
+        cls.default_location_keywords = list(location_keywords) if location_keywords is not None else None
 
     @staticmethod
     def clean_text(text: str) -> str:
@@ -56,10 +64,46 @@ class IntentAnalyzer:
         return False
 
     @classmethod
-    def extract_location(cls, combined_text: str, url_lower: str = "") -> str:
-        if cls.is_danang(combined_text.lower(), url_lower.lower()):
-            return "Đà Nẵng"
-        return "Ngoài Đà Nẵng"
+    def is_location_match(
+        cls,
+        full_text: str,
+        url_lower: str,
+        location_mode: Optional[str] = None,
+        location_keywords: Optional[List[str]] = None,
+    ) -> bool:
+        active_mode = (location_mode if location_mode is not None else cls.default_location_mode) or "Đà Nẵng"
+        active_kws = location_keywords if location_keywords is not None else cls.default_location_keywords
+        mode_lower = active_mode.strip().lower()
+        if mode_lower in ("toàn quốc", "toan quoc", "all", "*"):
+            return True
+        if mode_lower in ("đà nẵng", "da nang", "dn") and not active_kws:
+            return cls.is_danang(full_text, url_lower)
+        kws = [k.strip().lower() for k in (active_kws or []) if k and k.strip()]
+        if "*" in kws:
+            return True
+        if mode_lower in ("đà nẵng", "da nang", "dn") and kws == [k.lower() for k in DANANG_DISTRICTS]:
+            return cls.is_danang(full_text, url_lower)
+        if not kws:
+            kws = [mode_lower]
+        return any(k in full_text or k in url_lower for k in kws)
+
+    @classmethod
+    def extract_location(
+        cls,
+        combined_text: str,
+        url_lower: str = "",
+        location_mode: Optional[str] = None,
+        location_keywords: Optional[List[str]] = None,
+    ) -> str:
+        active_mode = (location_mode if location_mode is not None else cls.default_location_mode) or "Đà Nẵng"
+        if cls.is_location_match(
+            combined_text.lower(),
+            url_lower.lower(),
+            location_mode=active_mode,
+            location_keywords=location_keywords,
+        ):
+            return active_mode
+        return f"Ngoài {active_mode}"
 
     @classmethod
     def analyze(
@@ -69,7 +113,11 @@ class IntentAnalyzer:
         url: str = "",
         author: str = "Ẩn danh",
         published_date: str = "",
+        location_mode: Optional[str] = None,
+        location_keywords: Optional[List[str]] = None,
     ) -> LeadItem:
+        active_mode = (location_mode if location_mode is not None else cls.default_location_mode) or "Đà Nẵng"
+        active_kws = location_keywords if location_keywords is not None else cls.default_location_keywords
         title_clean = cls.clean_text(title)
         snippet_clean = cls.clean_text(snippet)
         full_text = f"{title_clean} {snippet_clean}".lower()
@@ -92,25 +140,36 @@ class IntentAnalyzer:
                 urgency="Thấp",
                 intent_score=reason_score,
                 lead_quality="SPAM_AD",
-                location=cls.extract_location(full_text, url_lower),
+                location=cls.extract_location(
+                    full_text,
+                    url_lower,
+                    location_mode=active_mode,
+                    location_keywords=active_kws,
+                ),
                 matched_keywords=[],
             )
 
-        # 0. Strict Location Filter: ONLY Đà Nẵng accepted
-        if not cls.is_danang(full_text, url_lower):
+        # 0. Location Filter (configured region, default Đà Nẵng)
+        if not cls.is_location_match(
+            full_text,
+            url_lower,
+            location_mode=active_mode,
+            location_keywords=active_kws,
+        ):
             return reject_item(0)
 
-        # Reject posts clearly asking about OTHER cities unless explicitly asking about Đà Nẵng in text
-        explicit_dn_ask = (
-            "ở đà nẵng" in full_text
-            or "tại đà nẵng" in full_text
-            or "vào đà nẵng" in full_text
-            or "khu vực đà nẵng" in full_text
-            or "ở đn" in full_text
-            or "tại đn" in full_text
-        )
-        if any(oc in full_text for oc in OTHER_CITY_SIGNALS) and not explicit_dn_ask:
-            return reject_item(0)
+        # Reject posts clearly asking about OTHER cities when specifically targeting Đà Nẵng
+        if active_mode.strip().lower() in ("đà nẵng", "da nang", "dn"):
+            explicit_dn_ask = (
+                "ở đà nẵng" in full_text
+                or "tại đà nẵng" in full_text
+                or "vào đà nẵng" in full_text
+                or "khu vực đà nẵng" in full_text
+                or "ở đn" in full_text
+                or "tại đn" in full_text
+            )
+            if any(oc in full_text for oc in OTHER_CITY_SIGNALS) and not explicit_dn_ask:
+                return reject_item(0)
 
         # Reject clinic / medical organization accounts posting as pages
         author_lower = (author or "").lower()
@@ -234,6 +293,6 @@ class IntentAnalyzer:
             urgency=urgency,
             intent_score=final_score,
             lead_quality=lead_quality,
-            location="Đà Nẵng",
+            location=active_mode,
             matched_keywords=matched_kws,
         )

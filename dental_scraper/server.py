@@ -32,6 +32,8 @@ DIST_DIR = os.path.join(PROJECT_ROOT, "web", "dist")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 LEADS_FILE = os.path.join(OUTPUT_DIR, "leads.json")
 CSV_FILE = os.path.join(OUTPUT_DIR, "leads.csv")
+USERS_FILE = os.path.join(OUTPUT_DIR, "users.json")
+SETTINGS_FILE = os.path.join(OUTPUT_DIR, "settings.json")
 
 # Auth Users Configuration
 AUTH_USERS = {
@@ -97,8 +99,88 @@ AUTH_USERS = {
     }
 }
 
+users_lock = threading.Lock()
+
+
+def load_users_from_disk():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    if not os.path.exists(USERS_FILE):
+        return
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        if not isinstance(saved, dict):
+            return
+        for uname, data in saved.items():
+            if uname in AUTH_USERS and isinstance(data, dict):
+                if isinstance(data.get("user"), dict):
+                    for key in ("name", "email", "roleLabel", "avatar"):
+                        if key in data["user"] and isinstance(data["user"][key], str):
+                            AUTH_USERS[uname]["user"][key] = data["user"][key]
+                if isinstance(data.get("passwords"), list) and data["passwords"]:
+                    AUTH_USERS[uname]["passwords"] = [str(p) for p in data["passwords"] if str(p)]
+    except Exception:
+        pass
+
+
+def save_users_to_disk():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with users_lock:
+        payload = {
+            uname: {
+                "passwords": acct["passwords"],
+                "user": acct["user"],
+            }
+            for uname, acct in AUTH_USERS.items()
+        }
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def update_user_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
+    username = str(payload.get("username", "")).strip().lower()
+    if not username or username not in AUTH_USERS:
+        return {"success": False, "error": "Không tìm thấy tài khoản cần cập nhật."}
+
+    name = str(payload.get("name", "")).strip()
+    email = str(payload.get("email", "")).strip()
+    role_label = str(payload.get("roleLabel", "")).strip()
+    avatar = str(payload.get("avatar", "")).strip()
+    new_password = str(payload.get("newPassword", "")).strip()
+
+    if not name:
+        return {"success": False, "error": "Tên hiển thị không được để trống."}
+    if len(avatar) > 650000:
+        return {"success": False, "error": "Ảnh đại diện quá lớn (vui lòng chọn ảnh dưới 500KB)."}
+
+    with users_lock:
+        targets = [username]
+        if username in ("nhanvien", "linhnguyen"):
+            targets = ["nhanvien", "linhnguyen"]
+        for t in targets:
+            if t not in AUTH_USERS:
+                continue
+            user_obj = AUTH_USERS[t]["user"]
+            user_obj["name"] = name[:80]
+            if email:
+                user_obj["email"] = email[:120]
+            if role_label:
+                user_obj["roleLabel"] = role_label[:80]
+            if avatar:
+                user_obj["avatar"] = avatar
+            if new_password:
+                AUTH_USERS[t]["passwords"] = [new_password]
+
+    save_users_to_disk()
+    return {"success": True, "user": dict(AUTH_USERS[username]["user"])}
+
+
+load_users_from_disk()
+
 # Global scanner lock and status
 scanner_lock = threading.Lock()
+crawler_state_lock = threading.Lock()
+crawler_wake_event = threading.Event()
 is_scanning = False
 last_scan_result = {"total": 0, "message": "Sẵn sàng"}
 
@@ -172,11 +254,57 @@ def save_leads_to_disk(leads: List[Dict[str, Any]]) -> None:
         ))
     CSVExporter.export(lead_items, CSV_FILE)
 
+REGION_PRESETS = {
+    "Đà Nẵng": list(DANANG_DISTRICTS),
+    "Hà Nội": [
+        "hà nội", "ha noi", "hn", "cầu giấy", "đống đa", "ba đình",
+        "hoàn kiếm", "thanh xuân", "hai bà trưng", "long biên", "hà đông",
+        "tây hồ", "hoàng mai", "nam từ liêm", "bắc từ liêm",
+    ],
+    "TP.HCM": [
+        "tp.hcm", "tphcm", "hồ chí minh", "ho chi minh", "sài gòn", "sai gon",
+        "thủ đức", "bình thạnh", "gò vấp", "phú nhuận", "tân bình", "quận 1",
+        "quận 3", "quận 7", "quận 10",
+    ],
+    "Huế": ["huế", "hue", "thừa thiên huế", "thua thien hue", "hương thủy", "hương trà"],
+    "Quảng Nam": ["quảng nam", "quang nam", "hội an", "hoi an", "tam kỳ", "tam ky", "điện bàn", "dien ban"],
+    "Toàn quốc": ["*"],
+}
+
+
+def format_interval_label(interval_seconds: int) -> str:
+    mins = max(1, round(interval_seconds / 60))
+    if mins < 60:
+        return f"{mins} phút / lần"
+    if mins % 60 == 0:
+        return f"{mins // 60} tiếng / lần"
+    hours = mins // 60
+    rem = mins % 60
+    return f"{hours}h{rem:02d}p / lần"
+
+
+def resolve_region_keywords(location: str, custom_keywords: Any = None) -> List[str]:
+    clean_loc = (location or "Đà Nẵng").strip() or "Đà Nẵng"
+    if isinstance(custom_keywords, list):
+        kws = [str(k).strip().lower() for k in custom_keywords if str(k).strip()]
+        if kws:
+            return kws
+    if isinstance(custom_keywords, str) and custom_keywords.strip():
+        kws = [k.strip().lower() for k in custom_keywords.split(",") if k.strip()]
+        if kws:
+            return kws
+    if clean_loc in REGION_PRESETS:
+        return list(REGION_PRESETS[clean_loc])
+    return [clean_loc.lower()]
+
+
 # Auto-Crawler & Anti-Sleep configuration
 auto_crawler_state = {
     "enabled": True,
     "interval_seconds": 3600,  # 1 hour
     "hourly_target": 10,       # 10 new real leads per run
+    "location": "Đà Nẵng",
+    "location_keywords": list(DANANG_DISTRICTS),
     "is_crawling": False,
     "last_run": None,
     "next_run": None,
@@ -184,6 +312,112 @@ auto_crawler_state = {
     "total_runs": 0,
     "message": "Đang chạy chế độ tự động cào: 1 tiếng / lần tại Đà Nẵng (dừng sau khi đủ 10 bài mới)"
 }
+
+
+def build_crawler_status_message() -> str:
+    loc = auto_crawler_state.get("location", "Đà Nẵng")
+    target = int(auto_crawler_state.get("hourly_target", 10))
+    interval_label = format_interval_label(int(auto_crawler_state.get("interval_seconds", 3600)))
+    if not auto_crawler_state.get("enabled", True):
+        return f"Đã tạm dừng tự động cào tại {loc} ({interval_label})"
+    next_run = auto_crawler_state.get("next_run")
+    if next_run:
+        return f"Tự động cào: {interval_label} tại {loc} ({target} bài mới) • Kế tiếp: {next_run}"
+    return f"Đang chạy chế độ tự động cào: {interval_label} tại {loc} (dừng sau khi đủ {target} bài mới)"
+
+
+def save_crawler_settings():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with crawler_state_lock:
+        payload = {
+            "enabled": bool(auto_crawler_state.get("enabled", True)),
+            "interval_seconds": int(auto_crawler_state.get("interval_seconds", 3600)),
+            "hourly_target": int(auto_crawler_state.get("hourly_target", 10)),
+            "location": str(auto_crawler_state.get("location", "Đà Nẵng")),
+            "location_keywords": list(auto_crawler_state.get("location_keywords", DANANG_DISTRICTS)),
+        }
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def load_crawler_settings():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            if isinstance(saved, dict):
+                if "enabled" in saved:
+                    auto_crawler_state["enabled"] = bool(saved["enabled"])
+                if "interval_seconds" in saved:
+                    auto_crawler_state["interval_seconds"] = max(60, min(86400, int(saved["interval_seconds"])))
+                if "hourly_target" in saved:
+                    auto_crawler_state["hourly_target"] = max(1, min(50, int(saved["hourly_target"])))
+                if saved.get("location"):
+                    auto_crawler_state["location"] = str(saved["location"]).strip()
+                auto_crawler_state["location_keywords"] = resolve_region_keywords(
+                    auto_crawler_state["location"],
+                    saved.get("location_keywords"),
+                )
+        except Exception:
+            pass
+    IntentAnalyzer.set_target_location(
+        auto_crawler_state["location"],
+        auto_crawler_state["location_keywords"],
+    )
+    auto_crawler_state["message"] = build_crawler_status_message()
+
+
+def update_crawler_config(payload: Dict[str, Any]) -> Dict[str, Any]:
+    with crawler_state_lock:
+        if "enabled" in payload:
+            auto_crawler_state["enabled"] = bool(payload["enabled"])
+        if "interval_seconds" in payload:
+            try:
+                val = int(payload["interval_seconds"])
+            except (TypeError, ValueError):
+                return {"success": False, "error": "Thời gian quét không hợp lệ."}
+            auto_crawler_state["interval_seconds"] = max(60, min(86400, val))
+        elif "interval_minutes" in payload:
+            try:
+                mins = int(payload["interval_minutes"])
+            except (TypeError, ValueError):
+                return {"success": False, "error": "Số phút quét không hợp lệ."}
+            auto_crawler_state["interval_seconds"] = max(60, min(86400, mins * 60))
+
+        if "hourly_target" in payload:
+            try:
+                tgt = int(payload["hourly_target"])
+            except (TypeError, ValueError):
+                return {"success": False, "error": "Số bài mỗi lần quét không hợp lệ."}
+            auto_crawler_state["hourly_target"] = max(1, min(50, tgt))
+
+        prev_loc = auto_crawler_state.get("location", "Đà Nẵng")
+        new_loc = str(payload.get("location", prev_loc)).strip() or "Đà Nẵng"
+        auto_crawler_state["location"] = new_loc
+        if "location_keywords" in payload:
+            auto_crawler_state["location_keywords"] = resolve_region_keywords(new_loc, payload.get("location_keywords"))
+        elif new_loc != prev_loc or new_loc in REGION_PRESETS:
+            auto_crawler_state["location_keywords"] = resolve_region_keywords(new_loc, None)
+
+        if auto_crawler_state["enabled"]:
+            next_dt = datetime.now() + timedelta(seconds=auto_crawler_state["interval_seconds"])
+            auto_crawler_state["next_run"] = next_dt.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            auto_crawler_state["next_run"] = None
+
+        IntentAnalyzer.set_target_location(
+            auto_crawler_state["location"],
+            auto_crawler_state["location_keywords"],
+        )
+        auto_crawler_state["message"] = build_crawler_status_message()
+
+    save_crawler_settings()
+    crawler_wake_event.set()
+    return {"success": True, "auto_crawler": dict(auto_crawler_state)}
+
+
+load_crawler_settings()
 
 anti_sleep_state = {
     "enabled": True,
@@ -225,6 +459,11 @@ def _normalize_platform(item: LeadItem) -> str:
 
 def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
     global last_scan_result
+    with crawler_state_lock:
+        active_location = auto_crawler_state.get("location", "Đà Nẵng")
+        active_keywords = list(auto_crawler_state.get("location_keywords", DANANG_DISTRICTS))
+    IntentAnalyzer.set_target_location(active_location, active_keywords)
+
     scanner = DentalLeadScanner(delay=0.6)
     existing_leads = load_leads_from_disk()
     existing_urls = {l.get("url") for l in existing_leads if l.get("url")}
@@ -242,8 +481,13 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
         url_lower = (r.url or "").lower()
         full_text = f"{r.title} {r.snippet}".lower()
 
-        # 1. Location requirement: MUST be Đà Nẵng
-        if not IntentAnalyzer.is_danang(full_text, url_lower):
+        # 1. Location requirement based on configured region (default: Đà Nẵng)
+        if not IntentAnalyzer.is_location_match(
+            full_text,
+            url_lower,
+            location_mode=active_location,
+            location_keywords=active_keywords,
+        ):
             return False
 
         # 2. Exclude commercial clinics, spam ads, & low-intent/off-topic matches
@@ -270,7 +514,7 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
         lead_dict["phone"] = extract_phone_from_text(f"{r.title} {r.snippet}")
         lead_dict["need"] = r.category_label
         lead_dict["status"] = "New"
-        lead_dict["location"] = "Đà Nẵng"
+        lead_dict["location"] = active_location
         lead_dict["agent"] = "Chưa phân công"
         lead_dict["agentInitials"] = "—"
         lead_dict["score"] = r.intent_score
@@ -281,7 +525,7 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
         else:
             lead_dict["post"] = f"{r.title} — {r.snippet}".strip(" —")
         lead_dict["note"] = (
-            f"Khách hàng có nhu cầu tại Đà Nẵng qua {norm_platform}. "
+            f"Khách hàng có nhu cầu tại {active_location} qua {norm_platform}. "
             f"Độ tin cậy ý định: {r.intent_score}đ."
         )
 
@@ -289,26 +533,60 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
         return True
 
     # Build balanced crawl tasks ONLY across Threads and Facebook
+    is_danang_mode = active_location.strip().lower() in ("đà nẵng", "da nang", "dn")
+    is_national_mode = active_location.strip().lower() in ("toàn quốc", "toan quoc", "all", "*")
+    region_query_suffix = "" if is_national_mode else active_location
     tasks = []
     if custom_query:
         clean_cq = custom_query.strip()
-        dn_cq = clean_cq
-        if "đà nẵng" not in clean_cq.lower() and "da nang" not in clean_cq.lower():
-            dn_cq = f"{clean_cq} đà nẵng"
+        reg_cq = clean_cq
+        if region_query_suffix and region_query_suffix.lower() not in clean_cq.lower():
+            reg_cq = f"{clean_cq} {region_query_suffix}"
         tasks = [
-            ("threads", dn_cq),
-            ("facebook_search", f'site:facebook.com/groups "Đà Nẵng" "{clean_cq}"'),
-            ("facebook_search", f'site:facebook.com "Đà Nẵng" "{clean_cq}"'),
-        ] + [("facebook_group", grp) for grp in DANANG_FACEBOOK_GROUPS]
-    else:
-        threads_tasks = [("threads", q) for q in THREADS_SEARCH_QUERIES]
-        fb_tasks = [("facebook_group", grp) for grp in DANANG_FACEBOOK_GROUPS] + [
-            ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "niềng răng"'),
-            ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "nhổ răng khôn"'),
-            ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "trám răng"'),
-            ("facebook_search", 'site:facebook.com "Đà Nẵng" "đau răng"'),
-            ("facebook_search", 'site:facebook.com "Đà Nẵng" "nha khoa"'),
+            ("threads", reg_cq),
+            (
+                "facebook_search",
+                f'site:facebook.com/groups "{region_query_suffix}" "{clean_cq}"'
+                if region_query_suffix
+                else f'site:facebook.com/groups "{clean_cq}"',
+            ),
+            (
+                "facebook_search",
+                f'site:facebook.com "{region_query_suffix}" "{clean_cq}"'
+                if region_query_suffix
+                else f'site:facebook.com "{clean_cq}"',
+            ),
         ]
+        if is_danang_mode:
+            tasks.extend([("facebook_group", grp) for grp in DANANG_FACEBOOK_GROUPS])
+    else:
+        if is_danang_mode:
+            threads_tasks = [("threads", q) for q in THREADS_SEARCH_QUERIES]
+            fb_tasks = [("facebook_group", grp) for grp in DANANG_FACEBOOK_GROUPS] + [
+                ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "niềng răng"'),
+                ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "nhổ răng khôn"'),
+                ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "trám răng"'),
+                ("facebook_search", 'site:facebook.com "Đà Nẵng" "đau răng"'),
+                ("facebook_search", 'site:facebook.com "Đà Nẵng" "nha khoa"'),
+            ]
+        else:
+            base_topics = ["nha khoa", "đau răng", "nhổ răng khôn", "niềng răng", "trám răng", "lấy cao răng"]
+            if region_query_suffix:
+                threads_tasks = [("threads", f"{topic} {region_query_suffix}") for topic in base_topics]
+                fb_tasks = [
+                    ("facebook_search", f'site:facebook.com/groups "{region_query_suffix}" "{topic}"')
+                    for topic in base_topics[:4]
+                ] + [
+                    ("facebook_search", f'site:facebook.com "{region_query_suffix}" "nha khoa"'),
+                ]
+            else:
+                threads_tasks = [("threads", f"{topic} uy tín") for topic in base_topics]
+                fb_tasks = [
+                    ("facebook_search", f'site:facebook.com/groups "niềng răng" "xin review"'),
+                    ("facebook_search", f'site:facebook.com/groups "nhổ răng khôn" "đau"'),
+                    ("facebook_search", f'site:facebook.com "đau răng" "nha khoa"'),
+                    ("facebook_search", f'site:facebook.com "trám răng" "ở đâu"'),
+                ]
 
         # Interleave Threads & Facebook so each run blends both platforms evenly
         max_len = max(len(threads_tasks), len(fb_tasks))
@@ -351,32 +629,74 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
     last_scan_result = {
         "total": len(existing_leads),
         "added": len(added_leads),
-        "message": f"Đã thu thập thành công {len(added_leads)} bài viết thật mới từ Facebook và Threads tại Đà Nẵng!"
+        "message": f"Đã thu thập thành công {len(added_leads)} bài viết thật mới từ Facebook và Threads tại {active_location}!"
     }
     return len(added_leads)
 
 def auto_crawler_loop():
     time.sleep(8)
     while True:
+        with crawler_state_lock:
+            enabled = bool(auto_crawler_state.get("enabled", True))
+            interval_secs = max(60, int(auto_crawler_state.get("interval_seconds", 3600)))
+            target_count = max(1, int(auto_crawler_state.get("hourly_target", 10)))
+            loc = auto_crawler_state.get("location", "Đà Nẵng")
+
+        if not enabled:
+            auto_crawler_state["is_crawling"] = False
+            auto_crawler_state["next_run"] = None
+            auto_crawler_state["message"] = build_crawler_status_message()
+            crawler_wake_event.wait(timeout=30)
+            crawler_wake_event.clear()
+            continue
+
         try:
             auto_crawler_state["is_crawling"] = True
             auto_crawler_state["last_run"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Auto-Crawler] Bắt đầu chu kỳ quét 10 bài viết thật mới...")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Auto-Crawler] Bắt đầu chu kỳ quét {target_count} bài mới tại {loc}...")
             with scanner_lock:
-                added = run_real_lead_scrape(target_new=10)
-            auto_crawler_state["leads_added_last_run"] = added
-            auto_crawler_state["total_runs"] += 1
-            auto_crawler_state["is_crawling"] = False
-            next_dt = datetime.now() + timedelta(seconds=auto_crawler_state["interval_seconds"])
-            auto_crawler_state["next_run"] = next_dt.strftime("%Y-%m-%d %H:%M:%S")
-            auto_crawler_state["message"] = f"Đã quét xong: thêm {added} bài mới. Lần quét kế tiếp lúc: {auto_crawler_state['next_run']}"
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Auto-Crawler] {auto_crawler_state['message']}. Nghỉ 1 tiếng...")
+                added = run_real_lead_scrape(target_new=target_count)
+            with crawler_state_lock:
+                interval_secs = max(60, int(auto_crawler_state.get("interval_seconds", 3600)))
+                next_dt = datetime.now() + timedelta(seconds=interval_secs)
+                auto_crawler_state["leads_added_last_run"] = added
+                auto_crawler_state["total_runs"] += 1
+                auto_crawler_state["is_crawling"] = False
+                auto_crawler_state["next_run"] = next_dt.strftime("%Y-%m-%d %H:%M:%S")
+                auto_crawler_state["message"] = (
+                    f"Đã quét xong tại {auto_crawler_state.get('location', 'Đà Nẵng')}: "
+                    f"thêm {added} bài mới. Lần quét kế tiếp lúc: {auto_crawler_state['next_run']}"
+                )
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Auto-Crawler] {auto_crawler_state['message']}")
         except Exception as e:
             auto_crawler_state["is_crawling"] = False
             auto_crawler_state["message"] = f"Lỗi cào tự động: {e}"
             print(f"[Auto-Crawler] Lỗi: {e}")
 
-        time.sleep(auto_crawler_state["interval_seconds"])
+        # Interruptible wait so changes to interval_seconds or enabled take effect immediately
+        start_wait = time.time()
+        while True:
+            with crawler_state_lock:
+                cur_enabled = bool(auto_crawler_state.get("enabled", True))
+                cur_interval = max(60, int(auto_crawler_state.get("interval_seconds", 3600)))
+            if not cur_enabled:
+                break
+            remaining = cur_interval - (time.time() - start_wait)
+            if remaining <= 0:
+                break
+            woke = crawler_wake_event.wait(timeout=min(remaining, 60))
+            if woke:
+                crawler_wake_event.clear()
+                # Recalculate next_run based on updated interval cleanly and continue waiting remainder
+                with crawler_state_lock:
+                    if not auto_crawler_state.get("enabled", True):
+                        break
+                    cur_interval = max(60, int(auto_crawler_state.get("interval_seconds", 3600)))
+                    rem_after_update = max(0, cur_interval - (time.time() - start_wait))
+                    auto_crawler_state["next_run"] = (
+                        datetime.now() + timedelta(seconds=rem_after_update)
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                    auto_crawler_state["message"] = build_crawler_status_message()
 
 def anti_sleep_keeper_loop():
     time.sleep(20)
@@ -467,6 +787,17 @@ class DentalApiHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"users": users_list}, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Crawler configuration & presets
+        if path == "/api/crawler/config":
+            with crawler_state_lock:
+                cfg = dict(auto_crawler_state)
+            self._set_headers(200, "application/json")
+            self.wfile.write(json.dumps({
+                "auto_crawler": cfg,
+                "region_presets": list(REGION_PRESETS.keys()),
+            }, ensure_ascii=False).encode("utf-8"))
+            return
+
         # Serve static React UI files
         self._serve_static(path)
 
@@ -498,6 +829,40 @@ class DentalApiHandler(BaseHTTPRequestHandler):
                 }, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Update User Profile & Avatar
+        if path == "/api/auth/profile":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            try:
+                payload = json.loads(body) if body else {}
+            except json.JSONDecodeError:
+                self._set_headers(400, "application/json")
+                self.wfile.write(json.dumps({"success": False, "error": "Dữ liệu JSON không hợp lệ."}).encode("utf-8"))
+                return
+
+            result = update_user_profile(payload)
+            status_code = 200 if result.get("success") else 400
+            self._set_headers(status_code, "application/json")
+            self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # API: Update Auto-Crawler Interval & Region Settings
+        if path == "/api/crawler/config":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            try:
+                payload = json.loads(body) if body else {}
+            except json.JSONDecodeError:
+                self._set_headers(400, "application/json")
+                self.wfile.write(json.dumps({"success": False, "error": "Dữ liệu JSON không hợp lệ."}).encode("utf-8"))
+                return
+
+            result = update_crawler_config(payload)
+            status_code = 200 if result.get("success") else 400
+            self._set_headers(status_code, "application/json")
+            self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+            return
+
         # API: Authentication Logout
         if path == "/api/auth/logout":
             self._set_headers(200, "application/json")
@@ -511,7 +876,9 @@ class DentalApiHandler(BaseHTTPRequestHandler):
             body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
             params = json.loads(body) if body else {}
             query = params.get("query", "")
-            limit = int(params.get("limit", 10))
+            default_target = int(auto_crawler_state.get("hourly_target", 10))
+            limit = int(params.get("limit", default_target))
+            active_loc = auto_crawler_state.get("location", "Đà Nẵng")
 
             if is_scanning or auto_crawler_state["is_crawling"]:
                 self._set_headers(409, "application/json")
@@ -531,9 +898,9 @@ class DentalApiHandler(BaseHTTPRequestHandler):
 
             self._set_headers(200, "application/json")
             self.wfile.write(json.dumps({
-                "message": "Đã bắt đầu tiến trình quét 10 bài viết thật mới từ Facebook và Threads tại Đà Nẵng!",
+                "message": f"Đã bắt đầu tiến trình quét {limit} bài viết thật mới từ Facebook và Threads tại {active_loc}!",
                 "is_scanning": True
-            }).encode("utf-8"))
+            }, ensure_ascii=False).encode("utf-8"))
             return
 
         self._set_headers(404)
