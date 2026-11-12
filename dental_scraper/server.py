@@ -15,8 +15,16 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
 from .cli import DentalLeadScanner
-from .config import COMMERCIAL_BLOG_DOMAINS, DANANG_DISTRICTS, AD_SPAM_SIGNALS
+from .config import (
+    AD_SPAM_SIGNALS,
+    COMMERCIAL_BLOG_DOMAINS,
+    DANANG_DISTRICTS,
+    DANANG_FACEBOOK_GROUPS,
+    DEFAULT_SEARCH_QUERIES,
+    THREADS_SEARCH_QUERIES,
+)
 from .exporters import CSVExporter, JSONExporter, HTMLExporter
+from .intent_analyzer import IntentAnalyzer
 from .models import LeadItem
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -198,6 +206,10 @@ def format_clean_author(item: LeadItem) -> str:
     if item.author and item.author != "Ẩn danh":
         return item.author
     url_lower = item.url.lower()
+    if "threads.com" in url_lower or "threads.net" in url_lower:
+        return "Thành viên Threads"
+    if "facebook.com" in url_lower or "fb.com" in url_lower:
+        return "Thành viên Facebook"
     if "voz.vn" in url_lower:
         return "Thành viên VOZ"
     if "tinhte.vn" in url_lower:
@@ -210,89 +222,147 @@ def format_clean_author(item: LeadItem) -> str:
         return "Thành viên Otofun"
     return "Bệnh nhân cần tư vấn"
 
+
+def _normalize_platform(item: LeadItem) -> str:
+    p_low = (item.platform or "").lower()
+    u_low = (item.url or "").lower()
+    if "threads" in p_low or "threads.com" in u_low or "threads.net" in u_low:
+        return "Threads"
+    if "facebook" in p_low or "facebook.com" in u_low or "fb.com" in u_low:
+        return "Facebook"
+    if "voz" in p_low or "voz.vn" in u_low:
+        return "Voz"
+    return "Web"
+
+
 def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
     global last_scan_result
-    scanner = DentalLeadScanner(delay=0.8)
+    scanner = DentalLeadScanner(delay=0.6)
     existing_leads = load_leads_from_disk()
     existing_urls = {l.get("url") for l in existing_leads if l.get("url")}
     existing_ids = {str(l.get("id")) for l in existing_leads}
 
     added_leads = []
-    
-    # Target real patient inquiry queries in Đà Nẵng
-    queries_to_run = [
-        'site:voz.vn "Đà Nẵng" "đau răng"',
-        'site:voz.vn "Đà Nẵng" "nhổ răng"',
-        'site:voz.vn "Đà Nẵng" "khám răng"',
-        'site:voz.vn "Đà Nẵng" "implant"',
-        'site:voz.vn "Đà Nẵng" "niềng răng"',
-        'site:voz.vn "Đà Nẵng" "làm răng"',
-        'site:voz.vn "Đà Nẵng" "răng"',
-        'site:voz.vn "Đà Nẵng" "răng khôn"',
-        'site:facebook.com "Đà Nẵng" "đau răng"',
-        'site:facebook.com "Đà Nẵng" "nhổ răng khôn"',
-        'site:facebook.com "Đà Nẵng" "niềng răng"',
-        'site:tinhte.vn "Đà Nẵng" "răng"',
-        'site:webtretho.com "Đà Nẵng" "răng"'
-    ]
 
+    def try_accept_lead(r: LeadItem) -> bool:
+        if len(added_leads) >= target_new:
+            return False
+        url_lower = (r.url or "").lower()
+        full_text = f"{r.title} {r.snippet}".lower()
+
+        # 1. Location requirement: MUST be Đà Nẵng (skip group pages / subforum indexes)
+        if not IntentAnalyzer.is_danang(full_text, url_lower):
+            return False
+        if "voz.vn/f/" in url_lower or "tinhte.vn/forums/" in url_lower:
+            return False
+
+        # 2. Exclude commercial clinics, spam ads, & low-intent/off-topic matches
+        if any(cd in url_lower for cd in COMMERCIAL_BLOG_DOMAINS):
+            return False
+        if any(spam_word in full_text for spam_word in AD_SPAM_SIGNALS):
+            return False
+        if r.lead_quality == "SPAM_AD" or r.intent_score < 40:
+            return False
+
+        if r.url in existing_urls or str(r.id) in existing_ids:
+            return False
+
+        existing_urls.add(r.url)
+        existing_ids.add(str(r.id))
+
+        norm_platform = _normalize_platform(r)
+        lead_dict = r.to_dict()
+        lead_dict["name"] = format_clean_author(r)
+        lead_dict["platform"] = norm_platform
+        if norm_platform == "Threads" and r.author and r.author.startswith("@"):
+            lead_dict["handle"] = r.author
+        else:
+            lead_dict["handle"] = f"@{norm_platform.lower()}"
+        lead_dict["phone"] = extract_phone_from_text(f"{r.title} {r.snippet}")
+        lead_dict["need"] = r.category_label
+        lead_dict["status"] = "New"
+        lead_dict["location"] = "Đà Nẵng"
+        lead_dict["agent"] = "Chưa phân công"
+        lead_dict["agentInitials"] = "—"
+        lead_dict["score"] = r.intent_score
+        lead_dict["time"] = r.published_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        title_prefix = (r.title or "").rstrip(".").strip()
+        if r.snippet and title_prefix and r.snippet.strip().startswith(title_prefix[:35]):
+            lead_dict["post"] = r.snippet.strip()
+        else:
+            lead_dict["post"] = f"{r.title} — {r.snippet}".strip(" —")
+        lead_dict["note"] = (
+            f"Khách hàng có nhu cầu tại Đà Nẵng qua {norm_platform}. "
+            f"Độ tin cậy ý định: {r.intent_score}đ."
+        )
+
+        added_leads.append(lead_dict)
+        return True
+
+    # Build balanced multi-source crawl tasks across Threads, Facebook, and Voz/Web
+    tasks = []
     if custom_query:
-        if "đà nẵng" not in custom_query.lower() and "da nang" not in custom_query.lower():
-            custom_query = f'"Đà Nẵng" {custom_query}'
-        queries_to_run.insert(0, custom_query)
+        clean_cq = custom_query.strip()
+        dn_cq = clean_cq
+        if "đà nẵng" not in clean_cq.lower() and "da nang" not in clean_cq.lower():
+            dn_cq = f"{clean_cq} đà nẵng"
+        tasks = [
+            ("threads", dn_cq),
+            ("facebook_search", f'site:facebook.com "Đà Nẵng" "{clean_cq}"'),
+            ("facebook_group", DANANG_FACEBOOK_GROUPS[0]),
+            ("ddg", f'site:voz.vn "Đà Nẵng" "{clean_cq}"'),
+            ("ddg", f'"Đà Nẵng" "{clean_cq}"'),
+        ]
+    else:
+        threads_tasks = [("threads", q) for q in THREADS_SEARCH_QUERIES]
+        fb_tasks = [("facebook_group", grp) for grp in DANANG_FACEBOOK_GROUPS] + [
+            ("facebook_search", 'site:facebook.com "Đà Nẵng" "niềng răng"'),
+            ("facebook_search", 'site:facebook.com "Đà Nẵng" "nhổ răng khôn"'),
+            ("facebook_search", 'site:facebook.com "Đà Nẵng" "đau răng"'),
+        ]
+        web_dorks = [
+            q["dork"]
+            for q in DEFAULT_SEARCH_QUERIES
+            if "threads" not in q["name"].lower() and "facebook" not in q["name"].lower()
+        ]
+        web_tasks = [("ddg", d) for d in web_dorks]
 
-    for q in queries_to_run:
+        # Interleave sources so each 10-lead batch blends Threads, Facebook, and Voz/Web
+        max_len = max(len(threads_tasks), len(fb_tasks), len(web_tasks))
+        for i in range(max_len):
+            if i < len(threads_tasks):
+                tasks.append(threads_tasks[i])
+            if i < len(fb_tasks):
+                tasks.append(fb_tasks[i])
+            if i < len(web_tasks):
+                tasks.append(web_tasks[i])
+
+    # Cap per-task additions during balanced runs so one group/query doesn't starve other platforms
+    per_task_cap = max(3, (target_new + 2) // 3) if not custom_query else target_new
+
+    for source_kind, arg in tasks:
         if len(added_leads) >= target_new:
             break
         try:
-            results = scanner.ddg.search(q, limit=8)
+            if source_kind == "threads":
+                results = scanner.threads.search(arg, limit=15)
+            elif source_kind == "facebook_group":
+                results = scanner.facebook.scrape_group(arg)
+            elif source_kind == "facebook_search":
+                results = scanner.facebook.search(arg, limit=8)
+            else:
+                results = scanner.ddg.search(arg, limit=8)
+
+            # Highest intent first within this task
+            results.sort(key=lambda x: x.intent_score, reverse=True)
+            task_added = 0
             for r in results:
-                url_lower = r.url.lower()
-                full_text = f"{r.title} {r.snippet}".lower()
-
-                # 1. Location requirement: MUST be in Da Nang
-                if not any(dm in full_text for dm in DANANG_DISTRICTS) and not any(dm in url_lower for dm in DANANG_DISTRICTS):
-                    continue
-
-                # 2. Exclude commercial clinic ads & procedure-describing blogs
-                if any(cd in url_lower for cd in COMMERCIAL_BLOG_DOMAINS):
-                    continue
-                if any(spam_word in full_text for spam_word in AD_SPAM_SIGNALS):
-                    continue
-                if r.lead_quality == "SPAM_AD" or r.intent_score < 30:
-                    continue
-
-                if r.url in existing_urls or str(r.id) in existing_ids:
-                    continue
-
-                existing_urls.add(r.url)
-                existing_ids.add(str(r.id))
-
-                lead_dict = r.to_dict()
-                lead_dict["name"] = format_clean_author(r)
-                if "voz" in r.platform.lower():
-                    lead_dict["platform"] = "Voz"
-                elif "facebook" in r.platform.lower():
-                    lead_dict["platform"] = "Facebook"
-                else:
-                    lead_dict["platform"] = "Web"
-                lead_dict["handle"] = f"@{lead_dict['platform'].lower()}"
-                lead_dict["phone"] = extract_phone_from_text(f"{r.title} {r.snippet}")
-                lead_dict["need"] = r.category_label
-                lead_dict["status"] = "New"
-                lead_dict["location"] = "Đà Nẵng"
-                lead_dict["agent"] = "Chưa phân công"
-                lead_dict["agentInitials"] = "—"
-                lead_dict["score"] = r.intent_score
-                lead_dict["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                lead_dict["post"] = f"{r.title} — {r.snippet}".strip()
-                lead_dict["note"] = f"Khách hàng có nhu cầu tại Đà Nẵng qua {r.platform}. Độ tin cậy ý định: {r.intent_score}đ."
-
-                added_leads.append(lead_dict)
-                if len(added_leads) >= target_new:
-                    break
+                if try_accept_lead(r):
+                    task_added += 1
+                    if len(added_leads) >= target_new or task_added >= per_task_cap:
+                        break
         except Exception as e:
-            print(f"Error querying {q}: {e}")
+            print(f"Error crawling ({source_kind}: {arg}): {e}")
 
     if added_leads:
         for nl in reversed(added_leads):
@@ -302,7 +372,7 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
     last_scan_result = {
         "total": len(existing_leads),
         "added": len(added_leads),
-        "message": f"Đã thu thập thành công {len(added_leads)} bài viết thật mới từ diễn đàn!"
+        "message": f"Đã thu thập thành công {len(added_leads)} bài viết thật mới tại Đà Nẵng (Threads, Facebook, Voz)!"
     }
     return len(added_leads)
 

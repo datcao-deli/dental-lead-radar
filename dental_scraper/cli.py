@@ -18,7 +18,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .config import DEFAULT_SEARCH_QUERIES, DENTAL_CATEGORIES
 from .models import LeadItem
-from .engines import DuckDuckGoEngine, RedditEngine, VozEngine
+from .engines import DuckDuckGoEngine, FacebookEngine, RedditEngine, ThreadsEngine, VozEngine
 from .exporters import CSVExporter, JSONExporter, HTMLExporter
 
 console = Console()
@@ -28,7 +28,9 @@ class DentalLeadScanner:
 
     def __init__(self, delay: float = 0.5):
         self.ddg = DuckDuckGoEngine(delay=delay)
+        self.facebook = FacebookEngine(delay=delay)
         self.reddit = RedditEngine(delay=delay)
+        self.threads = ThreadsEngine(delay=delay)
         self.voz = VozEngine(delay=delay)
 
     def scan(self, 
@@ -54,6 +56,12 @@ class DentalLeadScanner:
             # 1. Custom query search if provided
             if custom_query:
                 progress.update(task, description=f"[yellow]Đang quét truy vấn tùy chỉnh: '{custom_query}'...")
+                if "all" in active_sources or "threads" in active_sources:
+                    for l in self.threads.search(custom_query, limit=limit_per_query):
+                        all_leads[l.id] = l
+                if "all" in active_sources or "facebook" in active_sources:
+                    for l in self.facebook.search(custom_query, limit=limit_per_query):
+                        all_leads[l.id] = l
                 if "all" in active_sources or "web" in active_sources:
                     for l in self.ddg.search(custom_query, limit=limit_per_query):
                         all_leads[l.id] = l
@@ -70,7 +78,19 @@ class DentalLeadScanner:
                     q_name = q_obj["name"]
                     dork = q_obj["dork"]
 
-                    if "reddit" in q_name.lower():
+                    if "threads" in q_name.lower():
+                        if "all" not in active_sources and "threads" not in active_sources:
+                            continue
+                        progress.update(task, description=f"[cyan]Đang quét: {q_name}...")
+                        for l in self.threads.search(dork, limit=limit_per_query):
+                            all_leads[l.id] = l
+                    elif "facebook" in q_name.lower():
+                        if "all" not in active_sources and "facebook" not in active_sources:
+                            continue
+                        progress.update(task, description=f"[blue]Đang quét: {q_name}...")
+                        for l in self.facebook.search(dork, limit=limit_per_query):
+                            all_leads[l.id] = l
+                    elif "reddit" in q_name.lower():
                         if "all" not in active_sources and "reddit" not in active_sources:
                             continue
                         progress.update(task, description=f"[green]Đang quét: {q_name}...")

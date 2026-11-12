@@ -934,6 +934,10 @@ function SalesDashboard({
             <span>Khách hàng theo nguồn</span>
             <div>
               <b>
+                <i className="source-dot threads" />
+                Threads <strong>{sourceCounts.Threads || 0}</strong>
+              </b>
+              <b>
                 <i className="source-dot facebook" />
                 Facebook <strong>{sourceCounts.Facebook || 0}</strong>
               </b>
@@ -1288,16 +1292,22 @@ function CrawlerPanel({
   antiSleep?: any;
 }) {
   const [customQuery, setCustomQuery] = useState("");
-  const [states, setStates] = useState([true, true, true, true]);
+  const [states, setStates] = useState([true, true, true, true, true]);
   const crawlers = [
     {
-      name: "Facebook Groups & Review Nha Khoa",
-      source: "Facebook",
-      rate: "Quét dork intent",
+      name: "Threads (@threads.com) Đà Nẵng",
+      source: "Threads",
+      rate: "Quét bài mới & thảo luận",
       last: "Hoạt động",
     },
     {
-      name: "Voz Forum (F17 & F33 Thảo Luận Răng)",
+      name: "Facebook Groups & Review Nha Khoa Đà Nẵng",
+      source: "Facebook",
+      rate: "Nhóm công khai & bài hỏi",
+      last: "Hoạt động",
+    },
+    {
+      name: "Voz Forum (Thảo Luận Nha Khoa Đà Nẵng)",
       source: "Voz",
       rate: "Diễn đàn chuyên sâu",
       last: "Hoạt động",
@@ -1443,16 +1453,16 @@ function CrawlerPanel({
 }
 
 function KeywordPanel({ onTriggerScan }: { onTriggerScan?: (query: string) => void }) {
-  const [sources, setSources] = useState({ Facebook: true, Voz: true, Web: true });
+  const [sources, setSources] = useState({ Threads: true, Facebook: true, Voz: true, Web: true });
   const [customKw, setCustomKw] = useState("");
 
   const presetKeywords = [
-    "nhổ răng khôn cho em hỏi",
-    "niềng răng review kinh nghiệm",
-    "đau răng sâu tủy khám ở đâu",
-    "trồng răng implant giá bao nhiêu",
-    "nha khoa uy tín Hà Nội",
-    "nha khoa uy tín Sài Gòn",
+    "nhổ răng khôn đà nẵng",
+    "niềng răng đà nẵng",
+    "đau răng sâu tủy đà nẵng",
+    "trồng răng implant đà nẵng",
+    "bọc răng sứ đà nẵng",
+    "nha khoa uy tín đà nẵng",
   ];
 
   return (
