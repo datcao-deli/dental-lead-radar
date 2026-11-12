@@ -184,11 +184,15 @@ class FacebookEngine(BaseEngine):
                     # Preserve group title context for Da Nang location verification
                     context_title = f"[{p['group_title']}] {title}" if p.get("group_title") else title
 
+                    raw_author = (p.get("author") or "").strip()
+                    if not raw_author or raw_author.lower() == "anonymous participant":
+                        raw_author = "Thành viên Facebook (Ẩn danh)"
+
                     lead = IntentAnalyzer.analyze(
                         title=context_title,
                         snippet=text_clean,
                         url=post_url,
-                        author=p["author"],
+                        author=raw_author,
                         published_date=p["time"],
                     )
                     lead.title = title
@@ -215,11 +219,12 @@ class FacebookEngine(BaseEngine):
                         seen_urls.add(l.url)
                         leads.append(l)
 
-        # 2. Search Yandex / DDG for public Facebook posts & resolve hidden snippets
+        # 2. Search Google / Yandex for public Facebook posts & resolve hidden snippets
         fb_query = clean_q if "site:facebook.com" in clean_q.lower() else f'site:facebook.com "Đà Nẵng" "{clean_q}"'
+        meta_calls = 0
         try:
-            with DDGS(timeout=self.timeout) as ddgs:
-                for backend in ("yandex", "duckduckgo"):
+            with DDGS(timeout=min(self.timeout, 10)) as ddgs:
+                for backend in ("google", "yandex"):
                     try:
                         results = list(
                             ddgs.text(fb_query, backend=backend, region="vn-vi", max_results=limit)
@@ -231,23 +236,30 @@ class FacebookEngine(BaseEngine):
                         href = r.get("href", "")
                         if not href or "facebook.com" not in href.lower() or href in seen_urls:
                             continue
-                        # Skip generic profile / video / reel / about links unless post/group
-                        href_low = href.lower()
-                        if "/about/" in href_low or "/videos/" in href_low:
+                        # Skip generic profile / video / reel / about / bare group landing links
+                        href_low = href.lower().rstrip("/")
+                        if any(skip in href_low for skip in ("/about", "/videos", "/reel", "/watch", "/share/", "/photo")):
+                            continue
+                        if "/groups/" in href_low and "/posts/" not in href_low and "/permalink/" not in href_low:
                             continue
 
                         title = r.get("title", "")
                         snippet = r.get("body", "")
 
-                        if (
+                        if meta_calls < 3 and (
                             "hides the web page description" in snippet.lower()
                             or title.lower().strip() == "link to facebook.com"
                             or len(snippet) < 30
                         ):
+                            meta_calls += 1
                             meta = self.fetch_public_post_metadata(href)
                             if meta:
-                                title = meta.get("title") or title
-                                snippet = meta.get("snippet") or snippet
+                                meta_title = (meta.get("title") or "").strip()
+                                meta_snip = (meta.get("snippet") or "").strip()
+                                if meta_title and meta_title.lower() not in ("facebook", "log in to facebook"):
+                                    title = meta_title
+                                if len(meta_snip) > len(snippet) and "log in or sign up" not in meta_snip.lower():
+                                    snippet = meta_snip
 
                         if not snippet or "hides the web page description" in snippet.lower():
                             continue

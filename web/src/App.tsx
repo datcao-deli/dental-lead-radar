@@ -46,7 +46,7 @@ export type AuthUser = {
 export type Lead = {
   id: number | string;
   name: string;
-  platform: "Facebook" | "TikTok" | "Threads" | "Voz" | "Web" | "Otofun";
+  platform: "Facebook" | "Threads";
   handle: string;
   phone: string;
   need: string;
@@ -749,11 +749,8 @@ function SalesDashboard({
 
   const sourceCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      Facebook: 0,
-      Voz: 0,
-      Web: 0,
-      TikTok: 0,
       Threads: 0,
+      Facebook: 0,
     };
     for (const lead of leadRecords) {
       counts[lead.platform] = (counts[lead.platform] || 0) + 1;
@@ -941,14 +938,6 @@ function SalesDashboard({
                 <i className="source-dot facebook" />
                 Facebook <strong>{sourceCounts.Facebook || 0}</strong>
               </b>
-              <b>
-                <i className="source-dot voz" />
-                Voz <strong>{sourceCounts.Voz || 0}</strong>
-              </b>
-              <b>
-                <i className="source-dot web" />
-                Diễn đàn/Web <strong>{sourceCounts.Web || 0}</strong>
-              </b>
             </div>
           </div>
         </article>
@@ -1016,11 +1005,8 @@ function SalesDashboard({
                 onChange={(event) => setSourceFilter(event.target.value)}
               >
                 <option value="All">Tất cả nguồn</option>
-                <option value="Facebook">Facebook</option>
-                <option value="Voz">Voz Forum</option>
-                <option value="Web">Diễn đàn / Web</option>
-                <option value="TikTok">TikTok</option>
                 <option value="Threads">Threads</option>
+                <option value="Facebook">Facebook</option>
               </select>
             </label>
             <button type="button" className="icon-button" onClick={() => setSearch("")} title="Xóa bộ lọc">
@@ -1292,7 +1278,7 @@ function CrawlerPanel({
   antiSleep?: any;
 }) {
   const [customQuery, setCustomQuery] = useState("");
-  const [states, setStates] = useState([true, true, true, true, true]);
+  const [states, setStates] = useState([true, true, true]);
   const crawlers = [
     {
       name: "Threads (@threads.com) Đà Nẵng",
@@ -1301,27 +1287,15 @@ function CrawlerPanel({
       last: "Hoạt động",
     },
     {
-      name: "Facebook Groups & Review Nha Khoa Đà Nẵng",
+      name: "Facebook Public Groups Nha Khoa Đà Nẵng (6 nhóm)",
       source: "Facebook",
-      rate: "Nhóm công khai & bài hỏi",
+      rate: "Hội Niềng Răng & Review Nha Khoa",
       last: "Hoạt động",
     },
     {
-      name: "Voz Forum (Thảo Luận Nha Khoa Đà Nẵng)",
-      source: "Voz",
-      rate: "Diễn đàn chuyên sâu",
-      last: "Hoạt động",
-    },
-    {
-      name: "Webtretho & Hỏi Đáp Bác Sĩ",
-      source: "Web",
-      rate: "Kinh nghiệm thực tế",
-      last: "Hoạt động",
-    },
-    {
-      name: "Reddit (r/VietNam & Nha Khoa)",
-      source: "Web",
-      rate: "Cộng đồng hỏi đáp",
+      name: "Facebook Search Intent Đà Nẵng",
+      source: "Facebook",
+      rate: "Tìm kiếm bài hỏi đáp công khai",
       last: "Hoạt động",
     },
   ];
@@ -1453,7 +1427,7 @@ function CrawlerPanel({
 }
 
 function KeywordPanel({ onTriggerScan }: { onTriggerScan?: (query: string) => void }) {
-  const [sources, setSources] = useState({ Threads: true, Facebook: true, Voz: true, Web: true });
+  const [sources, setSources] = useState({ Threads: true, Facebook: true });
   const [customKw, setCustomKw] = useState("");
 
   const presetKeywords = [

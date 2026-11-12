@@ -41,7 +41,7 @@ DENTAL_CATEGORIES: Dict[str, Dict[str, any]] = {
     "TRỒNG_RĂNG_IMPLANT": {
         "label": "Trồng Răng / Cấy Ghép Implant",
         "keywords": [
-            "trồng răng", "cấy ghép implant", "mất răng", "implant", "cắm implant",
+            "trồng răng", "cấy ghép implant", "mất răng", "implant", "implent", "cắm implant",
             "răng giả", "lắp răng giả", "cầu răng sứ", "răng bị gãy", "gãy răng",
             "mất răng hàm", "trồng lại răng"
         ],
@@ -100,6 +100,9 @@ AD_SPAM_SIGNALS: List[str] = [
     "top 8 địa chỉ", "chi phí chỉ từ", "liên hệ ngay", "ưu đãi lớn",
     "chăm sóc sau khi nhổ", "lợi ích của việc", "là phương pháp", "giúp bạn khắc phục",
     "nội quy group", "chào mừng các thành viên mới", "tổng hợp 1 số nha khoa",
+    "thành lập tạo ra group", "thân chào các thành viên", "chào mừng các bạn đến với group",
+    "nội quy nhóm", "group này không thuộc quyền quản lý", "chia sẻ thật để chọn đúng nha khoa",
+    "điều bạn nên biết", "trải nghiệm của cả phòng khám", "trước khi gặp nha sĩ",
     "kiểm thử đăng bài", "test openclaw", "bóc trần", "khởi tố", "cảnh sát điều tra",
     "bàn chải điện", "máy tăm nước", "review bên dưới", "mua nha", "quán cháo lòng",
     "xe ghép", "cho thuê xe", "làm nail", "cắt tóc", "tư vấn giảm mỡ",
@@ -123,8 +126,8 @@ COMMERCIAL_BLOG_DOMAINS: List[str] = [
 
 # Strict Da Nang districts & keywords - ONLY Đà Nẵng leads accepted
 DANANG_DISTRICTS: List[str] = [
-    "đà nẵng", "da nang", "hải châu", "thanh khê", "sơn trà",
-    "ngũ hành sơn", "liên chiểu", "cẩm lệ", "hòa vang"
+    "đà nẵng", "da nang", "đà năng", "đnang", "dnang",
+    "hải châu", "thanh khê", "sơn trà", "ngũ hành sơn", "liên chiểu", "cẩm lệ", "hòa vang"
 ]
 
 # Phrases indicating the user is asking about ANOTHER city (reject unless clearly about Đà Nẵng)
@@ -145,9 +148,13 @@ LOCATIONS: Dict[str, List[str]] = {
 DANANG_FACEBOOK_GROUPS: List[str] = [
     "HoiniengrangDaNang",
     "niengrangdanang",
+    "3365268197085318",   # Review Nha Khoa Đà Nẵng
+    "1128764274635659",   # HỘI NIỀNG RĂNG ĐÀ NẴNG
+    "1031637815104523",   # Review Nha Khoa Đà Nẵng (Niềng Răng, Bọc Răng Sứ, Implant)
+    "254529296747848",    # Niềng răng Đà Nẵng - Hội review có tâm
 ]
 
-# Threads search queries targeting Đà Nẵng patients
+# Threads search queries targeting Đà Nẵng patients (concise list to avoid rate-limiting)
 THREADS_SEARCH_QUERIES: List[str] = [
     "nha khoa đà nẵng",
     "niềng răng đà nẵng",
@@ -155,52 +162,41 @@ THREADS_SEARCH_QUERIES: List[str] = [
     "nhổ răng đà nẵng",
     "đau răng đà nẵng",
     "trồng răng đà nẵng",
-    "nha khoa",
-    "niềng răng",
 ]
 
-# High-conversion intent queries focused STRICTLY on real patient inquiries in Đà Nẵng
-# Note: Only unambiguous multi-word dental phrases! Never bare "răng".
+# High-conversion intent queries focused STRICTLY on Facebook & Threads patients in Đà Nẵng
 DEFAULT_SEARCH_QUERIES: List[Dict[str, str]] = [
     {
         "name": "Threads Đà Nẵng - Nha khoa & Niềng răng",
         "dork": "nha khoa đà nẵng"
     },
     {
-        "name": "Facebook Groups Đà Nẵng - Hội Niềng Răng & Nha Khoa",
+        "name": "Threads Đà Nẵng - Nhổ răng & Đau răng",
+        "dork": "nhổ răng đà nẵng"
+    },
+    {
+        "name": "Facebook Groups Đà Nẵng - Hội Niềng Răng",
         "dork": "HoiniengrangDaNang"
     },
     {
-        "name": "Voz Forum Đà Nẵng - Khám & điều trị đau răng",
-        "dork": 'site:voz.vn "Đà Nẵng" "đau răng"'
+        "name": "Facebook Groups Đà Nẵng - Review Nha Khoa",
+        "dork": "3365268197085318"
     },
     {
-        "name": "Voz Forum Đà Nẵng - Nhổ răng khôn",
-        "dork": 'site:voz.vn "Đà Nẵng" "nhổ răng khôn"'
+        "name": "Facebook Groups Đà Nẵng - Hỏi Đáp Implant & Răng Sứ",
+        "dork": "1031637815104523"
     },
     {
-        "name": "Voz Forum Đà Nẵng - Khám răng & nha khoa",
-        "dork": 'site:voz.vn "Đà Nẵng" "khám răng"'
+        "name": "Facebook Đà Nẵng - Tìm nha khoa niềng răng",
+        "dork": 'site:facebook.com/groups "Đà Nẵng" "niềng răng"'
     },
     {
-        "name": "Voz Forum Đà Nẵng - Trồng răng Implant",
-        "dork": 'site:voz.vn "Đà Nẵng" "implant"'
+        "name": "Facebook Đà Nẵng - Hỏi đáp nhổ răng khôn & trám răng",
+        "dork": 'site:facebook.com/groups "Đà Nẵng" "răng"'
     },
     {
-        "name": "Voz Forum Đà Nẵng - Niềng răng & chỉnh nha",
-        "dork": 'site:voz.vn "Đà Nẵng" "niềng răng"'
-    },
-    {
-        "name": "Voz Forum Đà Nẵng - Bọc răng sứ",
-        "dork": 'site:voz.vn "Đà Nẵng" "răng sứ"'
-    },
-    {
-        "name": "Facebook Đà Nẵng - Hỏi đáp nhổ răng khôn & niềng răng",
-        "dork": 'site:facebook.com "Đà Nẵng" "niềng răng"'
-    },
-    {
-        "name": "Webtretho Đà Nẵng - Khám răng & nha khoa",
-        "dork": 'site:webtretho.com "Đà Nẵng" "nha khoa"'
+        "name": "Facebook Đà Nẵng - Đau răng sâu tủy & implant",
+        "dork": 'site:facebook.com "Đà Nẵng" "đau răng"'
     }
 ]
 

@@ -41,7 +41,7 @@ class DentalLeadScanner:
              min_score: int = 30,
              include_ads: bool = False) -> List[LeadItem]:
         
-        sources = sources or ["all"]
+        sources = sources or ["threads", "facebook"]
         active_sources = [s.lower() for s in sources]
         all_leads: Dict[str, LeadItem] = {}
 

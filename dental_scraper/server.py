@@ -203,23 +203,13 @@ def extract_phone_from_text(text: str) -> str:
     return "Chưa có SĐT"
 
 def format_clean_author(item: LeadItem) -> str:
-    if item.author and item.author != "Ẩn danh":
+    if item.author and item.author not in ("Ẩn danh", "Anonymous participant"):
         return item.author
     url_lower = item.url.lower()
     if "threads.com" in url_lower or "threads.net" in url_lower:
         return "Thành viên Threads"
     if "facebook.com" in url_lower or "fb.com" in url_lower:
         return "Thành viên Facebook"
-    if "voz.vn" in url_lower:
-        return "Thành viên VOZ"
-    if "tinhte.vn" in url_lower:
-        return "Thành viên Tinh Tế"
-    if "webtretho.com" in url_lower:
-        return "Thành viên Webtretho"
-    if "reddit.com" in url_lower:
-        return "Reddit User"
-    if "otofun.net" in url_lower:
-        return "Thành viên Otofun"
     return "Bệnh nhân cần tư vấn"
 
 
@@ -230,9 +220,7 @@ def _normalize_platform(item: LeadItem) -> str:
         return "Threads"
     if "facebook" in p_low or "facebook.com" in u_low or "fb.com" in u_low:
         return "Facebook"
-    if "voz" in p_low or "voz.vn" in u_low:
-        return "Voz"
-    return "Web"
+    return ""
 
 
 def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
@@ -247,13 +235,15 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
     def try_accept_lead(r: LeadItem) -> bool:
         if len(added_leads) >= target_new:
             return False
+        norm_platform = _normalize_platform(r)
+        if norm_platform not in ("Threads", "Facebook"):
+            return False
+
         url_lower = (r.url or "").lower()
         full_text = f"{r.title} {r.snippet}".lower()
 
-        # 1. Location requirement: MUST be Đà Nẵng (skip group pages / subforum indexes)
+        # 1. Location requirement: MUST be Đà Nẵng
         if not IntentAnalyzer.is_danang(full_text, url_lower):
-            return False
-        if "voz.vn/f/" in url_lower or "tinhte.vn/forums/" in url_lower:
             return False
 
         # 2. Exclude commercial clinics, spam ads, & low-intent/off-topic matches
@@ -270,7 +260,6 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
         existing_urls.add(r.url)
         existing_ids.add(str(r.id))
 
-        norm_platform = _normalize_platform(r)
         lead_dict = r.to_dict()
         lead_dict["name"] = format_clean_author(r)
         lead_dict["platform"] = norm_platform
@@ -299,7 +288,7 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
         added_leads.append(lead_dict)
         return True
 
-    # Build balanced multi-source crawl tasks across Threads, Facebook, and Voz/Web
+    # Build balanced crawl tasks ONLY across Threads and Facebook
     tasks = []
     if custom_query:
         clean_cq = custom_query.strip()
@@ -308,37 +297,29 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
             dn_cq = f"{clean_cq} đà nẵng"
         tasks = [
             ("threads", dn_cq),
+            ("facebook_search", f'site:facebook.com/groups "Đà Nẵng" "{clean_cq}"'),
             ("facebook_search", f'site:facebook.com "Đà Nẵng" "{clean_cq}"'),
-            ("facebook_group", DANANG_FACEBOOK_GROUPS[0]),
-            ("ddg", f'site:voz.vn "Đà Nẵng" "{clean_cq}"'),
-            ("ddg", f'"Đà Nẵng" "{clean_cq}"'),
-        ]
+        ] + [("facebook_group", grp) for grp in DANANG_FACEBOOK_GROUPS]
     else:
         threads_tasks = [("threads", q) for q in THREADS_SEARCH_QUERIES]
         fb_tasks = [("facebook_group", grp) for grp in DANANG_FACEBOOK_GROUPS] + [
-            ("facebook_search", 'site:facebook.com "Đà Nẵng" "niềng răng"'),
-            ("facebook_search", 'site:facebook.com "Đà Nẵng" "nhổ răng khôn"'),
+            ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "niềng răng"'),
+            ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "nhổ răng khôn"'),
+            ("facebook_search", 'site:facebook.com/groups "Đà Nẵng" "trám răng"'),
             ("facebook_search", 'site:facebook.com "Đà Nẵng" "đau răng"'),
+            ("facebook_search", 'site:facebook.com "Đà Nẵng" "nha khoa"'),
         ]
-        web_dorks = [
-            q["dork"]
-            for q in DEFAULT_SEARCH_QUERIES
-            if "threads" not in q["name"].lower() and "facebook" not in q["name"].lower()
-        ]
-        web_tasks = [("ddg", d) for d in web_dorks]
 
-        # Interleave sources so each 10-lead batch blends Threads, Facebook, and Voz/Web
-        max_len = max(len(threads_tasks), len(fb_tasks), len(web_tasks))
+        # Interleave Threads & Facebook so each run blends both platforms evenly
+        max_len = max(len(threads_tasks), len(fb_tasks))
         for i in range(max_len):
             if i < len(threads_tasks):
                 tasks.append(threads_tasks[i])
             if i < len(fb_tasks):
                 tasks.append(fb_tasks[i])
-            if i < len(web_tasks):
-                tasks.append(web_tasks[i])
 
-    # Cap per-task additions during balanced runs so one group/query doesn't starve other platforms
-    per_task_cap = max(3, (target_new + 2) // 3) if not custom_query else target_new
+    # Cap per-task additions during balanced runs so one group/query doesn't dominate
+    per_task_cap = max(6, target_new // 2) if not custom_query else target_new
 
     for source_kind, arg in tasks:
         if len(added_leads) >= target_new:
@@ -348,10 +329,8 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
                 results = scanner.threads.search(arg, limit=15)
             elif source_kind == "facebook_group":
                 results = scanner.facebook.scrape_group(arg)
-            elif source_kind == "facebook_search":
-                results = scanner.facebook.search(arg, limit=8)
             else:
-                results = scanner.ddg.search(arg, limit=8)
+                results = scanner.facebook.search(arg, limit=8)
 
             # Highest intent first within this task
             results.sort(key=lambda x: x.intent_score, reverse=True)
@@ -372,7 +351,7 @@ def run_real_lead_scrape(target_new: int = 10, custom_query: str = "") -> int:
     last_scan_result = {
         "total": len(existing_leads),
         "added": len(added_leads),
-        "message": f"Đã thu thập thành công {len(added_leads)} bài viết thật mới tại Đà Nẵng (Threads, Facebook, Voz)!"
+        "message": f"Đã thu thập thành công {len(added_leads)} bài viết thật mới từ Facebook và Threads tại Đà Nẵng!"
     }
     return len(added_leads)
 
@@ -552,7 +531,7 @@ class DentalApiHandler(BaseHTTPRequestHandler):
 
             self._set_headers(200, "application/json")
             self.wfile.write(json.dumps({
-                "message": "Đã bắt đầu tiến trình quét 10 bài viết thật mới từ các diễn đàn thảo luận!",
+                "message": "Đã bắt đầu tiến trình quét 10 bài viết thật mới từ Facebook và Threads tại Đà Nẵng!",
                 "is_scanning": True
             }).encode("utf-8"))
             return
