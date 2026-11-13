@@ -412,7 +412,9 @@ function AccountSettingsModal({
   const [email, setEmail] = useState(user.email);
   const [roleLabel, setRoleLabel] = useState(user.roleLabel);
   const [avatar, setAvatar] = useState(user.avatar);
-  const [avatarUrlInput, setAvatarUrlInput] = useState(isImageAvatar(user.avatar) ? user.avatar : "");
+  const [avatarUrlInput, setAvatarUrlInput] = useState(
+    isImageAvatar(user.avatar) && !user.avatar.startsWith("data:") ? user.avatar : ""
+  );
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -501,37 +503,68 @@ function AccountSettingsModal({
 
         <form className="modal-form" onSubmit={handleSubmit}>
           <div className="avatar-editor-row">
-            <AvatarBadge avatar={avatarUrlInput.trim() || avatar} name={name} className="avatar avatar-preview-lg" />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                <label className="secondary-button" style={{ cursor: "pointer", padding: "6px 12px", fontSize: "12px" }}>
-                  Tải ảnh đại diện
+            <AvatarBadge
+              avatar={avatarUrlInput.trim() || avatar}
+              name={name}
+              className="avatar avatar-preview-lg"
+            />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                <label
+                  className="secondary-button"
+                  style={{ cursor: "pointer", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600 }}
+                >
+                  <Icon name="user" size={15} /> Tải ảnh đại diện từ máy
                   <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: "none" }} />
                 </label>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  style={{ padding: "6px 10px", fontSize: "12px" }}
-                  onClick={() => {
-                    setAvatarUrlInput("");
-                    setAvatar(computeInitials(name));
-                  }}
-                >
-                  Dùng chữ cái ({computeInitials(name)})
-                </button>
+                {isImageAvatar(avatar) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "12px", color: "#10b981", fontWeight: 600 }}>
+                      ✓ Đã có ảnh đại diện
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAvatar("");
+                        setAvatarUrlInput("");
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#ef4444",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        padding: 0,
+                      }}
+                      title="Xóa ảnh và dùng chữ cái tên viết tắt"
+                    >
+                      Gỡ ảnh
+                    </button>
+                  </div>
+                )}
               </div>
               <input
                 type="url"
                 placeholder="Hoặc dán URL ảnh đại diện (https://...)"
-                value={avatarUrlInput}
-                onChange={(e) => setAvatarUrlInput(e.target.value)}
+                value={avatarUrlInput.startsWith("data:") ? "" : avatarUrlInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val.startsWith("data:")) {
+                    setAvatarUrlInput(val);
+                    if (val.trim()) {
+                      setAvatar(val.trim());
+                    }
+                  }
+                }}
                 style={{
                   background: "var(--surface)",
                   border: "1px solid var(--border)",
                   borderRadius: "8px",
-                  padding: "7px 10px",
+                  padding: "8px 12px",
                   color: "var(--text)",
-                  fontSize: "12px",
+                  fontSize: "12.5px",
                 }}
               />
             </div>
@@ -806,7 +839,7 @@ function Topbar({
             }}
             title={
               isAdmin
-                ? "Bấm để thay đổi thời gian boss tự động quét"
+                ? `Bấm để tùy chỉnh thời gian quét & khu vực (${activeRegion})`
                 : autoCrawler?.message || `Tự động quét: ${formatIntervalLong(autoCrawler?.interval_seconds)}`
             }
           >
@@ -842,26 +875,6 @@ function Topbar({
           >
             <span>🛡️ Chống ngủ đông 24/7</span>
           </div>
-
-          <button
-            type="button"
-            className="status-pill-btn"
-            onClick={() => isAdmin && onOpenCrawlerModal()}
-            style={{
-              fontWeight: 600,
-              background: "rgba(14, 165, 233, 0.12)",
-              color: "#0284c7",
-              border: "1px solid rgba(14, 165, 233, 0.3)",
-              cursor: isAdmin ? "pointer" : "default",
-            }}
-            title={
-              isAdmin
-                ? `Bấm để tùy chỉnh khu vực quét (hiện tại: ${activeRegion})`
-                : `Hệ thống đang quét khách hàng tại ${activeRegion}`
-            }
-          >
-            <span>📍 Khu vực: {activeRegion}</span>
-          </button>
         </div>
 
         <button
@@ -906,10 +919,10 @@ function Topbar({
             <div className="profile-dropdown">
               <div className="profile-dropdown-header">
                 <AvatarBadge avatar={user.avatar} name={user.name} className="avatar large" />
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <h4>{user.name}</h4>
                   <p>@{user.username} • {user.email}</p>
-                  <span className={`role-badge ${user.role === "admin" ? "admin" : ""}`}>
+                  <span className={`profile-role-badge ${user.role === "admin" ? "admin" : ""}`}>
                     {user.role === "admin" ? "Quản trị viên toàn quyền" : "Chuyên viên tư vấn & CSKH"}
                   </span>
                 </div>
@@ -1174,7 +1187,7 @@ function SalesDashboard({
       "Ghi chú",
     ];
     const escapeCell = (value: string | number | undefined) =>
-      `"${String(value ?? "").replaceAll('"', '""')}"`;
+      `"${String(value ?? "").replace(/"/g, '""')}"`;
     const rows = filteredLeads.map((lead) =>
       [
         lead.id,
@@ -1198,7 +1211,7 @@ function SalesDashboard({
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `leads-nha-khoa-${section.toLowerCase().replaceAll(" ", "-")}.csv`;
+    link.download = `leads-nha-khoa-${section.toLowerCase().replace(/\s+/g, "-")}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -1484,9 +1497,32 @@ function SalesDashboard({
                       </button>
                     </td>
                     <td>
-                      <div className="platform-cell">
+                      <div
+                        className="platform-cell clickable"
+                        onClick={() => onOpenLead(lead)}
+                        title="Bấm để xem chi tiết bài viết & thông tin nguồn"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            onOpenLead(lead);
+                          }
+                        }}
+                      >
                         <PlatformIcon platform={lead.platform} />
-                        {lead.platform}
+                        <span className="platform-name">{lead.platform}</span>
+                        {lead.url && (
+                          <a
+                            href={lead.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="source-direct-link"
+                            title={`Mở trực tiếp bài viết trên ${lead.platform}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icon name="external" size={12} />
+                          </a>
+                        )}
                       </div>
                     </td>
                     <td>
